@@ -1,36 +1,97 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# PingChain - Smart Communication Assistant
+
+PingChain helps you maintain meaningful connections by reminding you to follow up, suggesting thoughtful responses, and tracking your communication patterns.
+
+## Features
+
+- Smart reminders for follow-ups
+- AI-powered message drafting
+- Communication pattern insights
+- Social authentication
+- Responsive design for web and mobile
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
 
+- Node.js 18+ and npm
+- GitHub account (for OAuth)
+- Google account (for OAuth)
+- OpenAI API key (for AI features)
+
+### Installation
+
+1. Clone the repository:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/yourusername/pingchain.git
+cd pingchain
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Install dependencies:
+```bash
+npm install
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. Create a `.env.local` file in the root directory with the following variables:
+```env
+# NextAuth.js
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=your-secret-key-here # Generate a secure secret key
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+# GitHub OAuth
+GITHUB_ID=your-github-client-id
+GITHUB_SECRET=your-github-client-secret
 
-## Learn More
+# Google OAuth
+GOOGLE_ID=your-google-client-id
+GOOGLE_SECRET=your-google-client-secret
 
-To learn more about Next.js, take a look at the following resources:
+# OpenAI (for AI features)
+OPENAI_API_KEY=your-openai-api-key
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+4. Set up OAuth applications:
+   - GitHub: Create a new OAuth app at https://github.com/settings/applications/new
+   - Google: Create a new project and OAuth 2.0 credentials at https://console.cloud.google.com
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+5. Run the development server:
+```bash
+npm run dev
+```
 
-## Deploy on Vercel
+6. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Development
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Project Structure
+
+```
+pingchain/
+├── src/
+│   ├── app/              # Next.js app directory
+│   ├── components/       # React components
+│   ├── lib/             # Utility functions
+│   └── types/           # TypeScript types
+├── public/              # Static assets
+└── prisma/             # Database schema
+```
+
+### Available Scripts
+
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm start` - Start production server
+- `npm run lint` - Run ESLint
+- `npm run type-check` - Run TypeScript type checking
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

@@ -1,103 +1,162 @@
-import Image from "next/image";
+'use client'
+
+import { useState, useEffect } from 'react'
+import { useAuth } from '@clerk/nextjs'
+import { ContactList } from '@/components/ContactList'
+import { MessageList } from '@/components/MessageList'
+import { MessageAssistant } from '@/components/MessageAssistant'
+import { MessageReminder } from '@/components/MessageReminder'
+import { EngagementTracker } from '@/components/EngagementTracker'
+import { ContractList } from '@/components/ContractList'
+import { ContractForm } from '@/components/ContractForm'
+import { StreakDisplay } from '@/components/StreakDisplay'
+import type { Contact } from '@/types/firebase'
+import { getContacts } from '@/lib/firebase-service'
+
+const features = [
+  {
+    name: 'Smart Reminders',
+    description: 'Never forget to respond to important messages with intelligent follow-up reminders.',
+  },
+  {
+    name: 'AI Message Drafting',
+    description: 'Get help crafting thoughtful responses with AI-powered message suggestions.',
+  },
+  {
+    name: 'Communication Insights',
+    description: 'Track your communication patterns and improve your relationships over time.',
+  },
+]
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null)
+  const [contacts, setContacts] = useState<Contact[]>([])
+  const { isSignedIn, userId } = useAuth()
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  useEffect(() => {
+    if (!userId) return
+
+    // Set up real-time listener for contacts
+    const unsubscribe = getContacts(userId, (newContacts) => {
+      setContacts(newContacts)
+    })
+
+    // Cleanup subscription on unmount
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe()
+      }
+    }
+  }, [userId])
+
+  if (!isSignedIn) {
+    return (
+      <div className="min-h-screen bg-gray-50 py-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center">
+            <h1 className="text-4xl font-bold text-gray-900 sm:text-5xl md:text-6xl">
+              PingChain
+            </h1>
+            <p className="mt-3 max-w-md mx-auto text-base text-gray-500 sm:text-lg md:mt-5 md:text-xl md:max-w-3xl">
+              Never leave important conversations hanging. A smart communication assistant that helps you maintain meaningful connections.
+            </p>
+          </div>
+
+          <div className="mt-12">
+            <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
+              {features.map((feature) => (
+                <div
+                  key={feature.name}
+                  className="pt-6"
+                >
+                  <div className="flow-root bg-white rounded-lg px-6 pb-8">
+                    <div className="-mt-6">
+                      <div>
+                        <span className="inline-flex items-center justify-center p-3 bg-primary rounded-md shadow-lg">
+                          {/* Icon placeholder */}
+                        </span>
+                      </div>
+                      <h3 className="mt-8 text-lg font-medium text-gray-900 tracking-tight">
+                        {feature.name}
+                      </h3>
+                      <p className="mt-5 text-base text-gray-500">
+                        {feature.description}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 py-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Left Column - Contact List */}
+          <div>
+            <ContactList
+              userId={userId!}
+              onContactSelect={(contactId) => {
+                const contact = contacts.find((c: Contact) => c.id === contactId)
+                setSelectedContact(contact || null)
+              }}
+            />
+          </div>
+
+          {/* Middle Column - Messages and Reminders */}
+          <div className="space-y-8">
+            {selectedContact ? (
+              <>
+                <MessageList contactId={selectedContact.id} />
+                <MessageReminder
+                  contactId={selectedContact.id}
+                  contact={selectedContact}
+                  onSendMessage={(message) => {
+                    // Handle sending message
+                  }}
+                />
+                <MessageAssistant
+                  contactId={selectedContact.id}
+                  onMessageSent={() => {
+                    // Handle message sent
+                  }}
+                />
+              </>
+            ) : (
+              <div className="text-center text-gray-500">
+                Select a contact to start messaging
+              </div>
+            )}
+          </div>
+
+          {/* Right Column - Contracts and Insights */}
+          <div className="space-y-8">
+            {selectedContact ? (
+              <>
+                <StreakDisplay
+                  contactId={selectedContact.id}
+                  userId={userId!}
+                />
+                <EngagementTracker
+                  contactId={selectedContact.id}
+                  contact={selectedContact}
+                />
+                <ContractList contactId={selectedContact.id} />
+                <ContractForm contactId={selectedContact.id} />
+              </>
+            ) : (
+              <div className="text-center text-gray-500">
+                Select a contact to view insights
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
-  );
+  )
 }
