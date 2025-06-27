@@ -57,7 +57,7 @@ export default function Navigation() {
                   )}
                 </div>
               </div>
-              <div className="hidden sm:ml-6 sm:flex sm:items-center">
+              <div className="flex items-center">
                 {isSignedIn ? (
                   <UserButton afterSignOutUrl="/" />
                 ) : (

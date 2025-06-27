@@ -2,6 +2,8 @@
 
 PingChain helps you maintain meaningful connections by reminding you to follow up, suggesting thoughtful responses, and tracking your communication patterns.
 
+**Never leave important conversations hanging.**
+
 ## Features
 
 - Smart reminders for follow-ups
@@ -80,9 +82,31 @@ pingchain/
 
 - `npm run dev` - Start development server
 - `npm run build` - Build for production
-- `npm start` - Start production server
+- `npm run start` - Start production server
 - `npm run lint` - Run ESLint
-- `npm run type-check` - Run TypeScript type checking
+
+## Core Features
+
+### Loop Dashboard
+- **Open Loops**: Track conversations that need follow-up
+- **Pending Replies**: Monitor messages that need responses
+- **Streaks**: Track your communication consistency
+- **Check-Ins Sent**: Count of AI-assisted messages sent
+
+### Smart Reminders
+- Automated detection of conversations that need attention
+- AI-generated response suggestions
+- Priority-based urgency indicators
+
+### Communication Contracts
+- Set up regular check-in schedules
+- Define response time expectations
+- Track communication commitments
+
+### AI Message Assistant
+- Tone analysis and suggestions
+- Context-aware message drafting
+- Relationship-focused communication guidance
 
 ## Contributing
 
