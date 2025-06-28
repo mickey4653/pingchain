@@ -29,6 +29,23 @@ export interface PendingResponse {
   suggestedResponse?: string
 }
 
+// Helper function to handle both Firestore Timestamp and regular Date objects
+function getMessageDate(message: any): Date {
+  if (message.createdAt && typeof message.createdAt.toDate === 'function') {
+    // Firestore Timestamp object
+    return message.createdAt.toDate()
+  } else if (message.createdAt instanceof Date) {
+    // Regular Date object
+    return message.createdAt
+  } else if (typeof message.createdAt === 'string') {
+    // ISO string
+    return new Date(message.createdAt)
+  } else {
+    // Fallback to current date
+    return new Date()
+  }
+}
+
 // Analyze conversation for open loops and pending responses
 export function analyzeConversation(messages: any[], contactId: string): ConversationContext {
   const contactMessages = messages.filter(m => m.contactId === contactId)
@@ -54,7 +71,7 @@ export function analyzeConversation(messages: any[], contactId: string): Convers
         messageId: message.id,
         question: message.content,
         askedBy: message.userId ? 'user' : 'contact',
-        createdAt: message.createdAt.toDate(),
+        createdAt: getMessageDate(message),
         urgency: determineUrgency(message, contactMessages),
         context: extractContext(message, contactMessages)
       }
@@ -68,7 +85,7 @@ export function analyzeConversation(messages: any[], contactId: string): Convers
           messageId: message.id,
           question: message.content,
           askedBy: 'contact',
-          createdAt: message.createdAt.toDate(),
+          createdAt: getMessageDate(message),
           urgency: openLoop.urgency
         })
       }
@@ -86,7 +103,7 @@ export function analyzeConversation(messages: any[], contactId: string): Convers
     openLoops,
     pendingResponses,
     conversationHealth,
-    lastInteraction: contactMessages[0]?.createdAt.toDate() || new Date(),
+    lastInteraction: contactMessages[0] ? getMessageDate(contactMessages[0]) : new Date(),
     responseTime,
     engagementScore
   }
@@ -95,7 +112,7 @@ export function analyzeConversation(messages: any[], contactId: string): Convers
 // Determine urgency based on content and time
 function determineUrgency(message: any, allMessages: any[]): 'high' | 'medium' | 'low' {
   const content = message.content.toLowerCase()
-  const hoursSinceMessage = (new Date().getTime() - message.createdAt.toDate().getTime()) / (1000 * 60 * 60)
+  const hoursSinceMessage = (new Date().getTime() - getMessageDate(message).getTime()) / (1000 * 60 * 60)
   
   // High urgency keywords
   const highUrgencyKeywords = ['urgent', 'asap', 'emergency', 'important', 'deadline', 'critical']
@@ -128,7 +145,7 @@ function calculateConversationHealth(messages: any[], openLoops: OpenLoop[]): 'e
   const totalMessages = messages.length
   const openLoopsCount = openLoops.length
   const lastMessageAge = messages.length > 0 ? 
-    (new Date().getTime() - messages[0].createdAt.toDate().getTime()) / (1000 * 60 * 60 * 24) : 0
+    (new Date().getTime() - getMessageDate(messages[0]).getTime()) / (1000 * 60 * 60 * 24) : 0
   
   if (openLoopsCount === 0 && lastMessageAge < 1) return 'excellent'
   if (openLoopsCount <= 1 && lastMessageAge < 3) return 'good'
@@ -150,7 +167,7 @@ function calculateAverageResponseTime(messages: any[]): number {
     
     // If messages are from different people, calculate response time
     if (currentMessage.userId !== nextMessage.userId) {
-      const responseTime = (nextMessage.createdAt.toDate().getTime() - currentMessage.createdAt.toDate().getTime()) / (1000 * 60 * 60)
+      const responseTime = (getMessageDate(nextMessage).getTime() - getMessageDate(currentMessage).getTime()) / (1000 * 60 * 60)
       totalResponseTime += responseTime
       responseCount++
     }
@@ -168,14 +185,14 @@ function calculateEngagementScore(messages: any[], openLoops: OpenLoop[]): numbe
   
   // Deduct points for long gaps
   if (messages.length > 0) {
-    const lastMessageAge = (new Date().getTime() - messages[0].createdAt.toDate().getTime()) / (1000 * 60 * 60 * 24)
+    const lastMessageAge = (new Date().getTime() - getMessageDate(messages[0]).getTime()) / (1000 * 60 * 60 * 24)
     if (lastMessageAge > 7) score -= 30
     else if (lastMessageAge > 3) score -= 15
   }
   
   // Add points for recent activity
   if (messages.length > 0) {
-    const lastMessageAge = (new Date().getTime() - messages[0].createdAt.toDate().getTime()) / (1000 * 60 * 60)
+    const lastMessageAge = (new Date().getTime() - getMessageDate(messages[0]).getTime()) / (1000 * 60 * 60)
     if (lastMessageAge < 1) score += 10
     else if (lastMessageAge < 24) score += 5
   }

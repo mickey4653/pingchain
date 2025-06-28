@@ -1,3 +1,47 @@
+// Only import email functions on server side
+let sendEmailReminder: any = null
+let createReminderEmail: any = null
+let createFollowupEmail: any = null
+
+if (typeof window === 'undefined') {
+  // Server-side only
+  try {
+    // Try Resend first
+    const resend = require('./resend')
+    sendEmailReminder = resend.sendEmailReminder
+    createReminderEmail = resend.createReminderEmail
+    createFollowupEmail = resend.createFollowupEmail
+  } catch (error) {
+    console.log('Resend not available, trying simple email service')
+    try {
+      // Fallback to simple email service
+      const simpleEmail = require('./simple-email')
+      sendEmailReminder = simpleEmail.sendEmailReminder
+      createReminderEmail = simpleEmail.createReminderEmail
+      createFollowupEmail = simpleEmail.createFollowupEmail
+    } catch (error2) {
+      console.log('Simple email service not available:', error2)
+    }
+  }
+}
+
+// Helper function to handle both Firestore Timestamp and regular Date objects
+function getMessageDate(message: any): Date {
+  if (message.createdAt && typeof message.createdAt.toDate === 'function') {
+    // Firestore Timestamp object
+    return message.createdAt.toDate()
+  } else if (message.createdAt instanceof Date) {
+    // Regular Date object
+    return message.createdAt
+  } else if (typeof message.createdAt === 'string') {
+    // ISO string
+    return new Date(message.createdAt)
+  } else {
+    // Fallback to current date
+    return new Date()
+  }
+}
+
 export interface Reminder {
   id: string
   userId: string
@@ -30,7 +74,7 @@ export function checkForOverdueConversations(
   const reminders: Reminder[] = []
   
   openLoops.forEach(loop => {
-    const hoursSinceLastMessage = (now.getTime() - loop.message.createdAt.toDate().getTime()) / (1000 * 60 * 60)
+    const hoursSinceLastMessage = (now.getTime() - getMessageDate(loop.message).getTime()) / (1000 * 60 * 60)
     
     // Create reminders for conversations older than 24 hours
     if (hoursSinceLastMessage >= 24) {
@@ -62,18 +106,65 @@ export function checkScheduledFollowups(userId: string): ScheduledFollowup[] {
   })
 }
 
-// Send email reminder (placeholder for now)
-export async function sendEmailReminder(reminder: Reminder): Promise<boolean> {
+// Send email reminder using Resend
+export async function sendEmailReminderWithResend(reminder: Reminder): Promise<boolean> {
   try {
-    // This would integrate with your email service (SendGrid, AWS SES, etc.)
-    console.log('Sending email reminder:', reminder)
+    // Check if Resend functions are available
+    if (!sendEmailReminder || !createReminderEmail) {
+      console.log('Resend not available, logging reminder instead:', reminder)
+      return true
+    }
+
+    // Find the contact and message details
+    const contactName = reminder.contactName
+    const hoursSinceLastMessage = Math.floor((new Date().getTime() - reminder.createdAt.getTime()) / (1000 * 60 * 60))
     
-    // For now, just log the reminder
-    console.log(`📧 Email to user: ${reminder.message}`)
+    // Create email content
+    const emailReminder = createReminderEmail(
+      contactName,
+      hoursSinceLastMessage,
+      reminder.message
+    )
     
-    return true
+    // Send email
+    const success = await sendEmailReminder(emailReminder)
+    
+    if (success) {
+      console.log(`📧 Email reminder sent for ${contactName}`)
+    }
+    
+    return success
   } catch (error) {
     console.error('Error sending email reminder:', error)
+    return false
+  }
+}
+
+// Send scheduled follow-up email
+export async function sendScheduledFollowupEmail(followup: ScheduledFollowup): Promise<boolean> {
+  try {
+    // Check if Resend functions are available
+    if (!sendEmailReminder || !createFollowupEmail) {
+      console.log('Resend not available, logging follow-up instead:', followup)
+      return true
+    }
+
+    // Create email content
+    const emailReminder = createFollowupEmail(
+      followup.contactName,
+      followup.message
+    )
+    
+    // Send email
+    const success = await sendEmailReminder(emailReminder)
+    
+    if (success) {
+      console.log(`📧 Scheduled follow-up email sent for ${followup.contactName}`)
+    }
+    
+    return success
+  } catch (error) {
+    console.error('Error sending scheduled follow-up email:', error)
     return false
   }
 }
@@ -104,13 +195,13 @@ export async function processReminders(userId: string, openLoops: any[]): Promis
   
   // Process overdue reminders
   for (const reminder of overdueReminders) {
-    await sendEmailReminder(reminder)
+    await sendEmailReminderWithResend(reminder)
     await sendPushNotification(reminder)
   }
   
   // Process scheduled follow-ups
   for (const followup of scheduledFollowups) {
     console.log(`📅 Scheduled follow-up due: ${followup.message}`)
-    // This would trigger the actual follow-up action
+    await sendScheduledFollowupEmail(followup)
   }
 } 

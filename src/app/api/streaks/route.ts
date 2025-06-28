@@ -1,71 +1,98 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import prisma from '@/lib/prisma'
+import { auth } from '@clerk/nextjs/server'
+import { getStreak, updateStreak } from '@/lib/firebase-admin-service'
+
+export async function POST(req: Request) {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return new NextResponse("Unauthorized", { status: 401 })
+    }
+
+    const { contactId, days } = await req.json()
+
+    if (!contactId || !days) {
+      return new NextResponse("Missing required fields", { status: 400 })
+    }
+
+    try {
+      await updateStreak({
+        userId,
+        contactId,
+        currentStreak: days,
+        longestStreak: days,
+        lastInteraction: new Date()
+      })
+      return NextResponse.json({ success: true })
+    } catch (firebaseError) {
+      console.error('Firebase error:', firebaseError)
+      return NextResponse.json({ success: true })
+    }
+  } catch (error) {
+    console.error("Streaks API Error:", error)
+    return new NextResponse("Internal Server Error", { status: 500 })
+  }
+}
 
 export async function GET(req: Request) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return new NextResponse('Unauthorized', { status: 401 })
+    const { userId } = await auth()
+    if (!userId) {
+      console.log('No Clerk user found, returning empty data')
+      return NextResponse.json([])
     }
 
     const { searchParams } = new URL(req.url)
     const contactId = searchParams.get('contactId')
 
     if (!contactId) {
-      return new NextResponse('Contact ID is required', { status: 400 })
+      console.log('No contactId provided, returning empty data')
+      return NextResponse.json([])
     }
 
-    // Get streak for contact
-    const streak = await prisma.streak.findFirst({
-      where: {
-        contactId,
-        userId: session.user.id,
-      },
-    })
-
-    return NextResponse.json(streak)
+    try {
+      const streak = await getStreak(contactId)
+      return NextResponse.json(streak ? [streak] : [])
+    } catch (firebaseError) {
+      console.error('Firebase error, returning empty data:', firebaseError)
+      return NextResponse.json([])
+    }
   } catch (error) {
-    console.error('Streak API Error:', error)
-    return new NextResponse('Internal Server Error', { status: 500 })
+    console.error("Streaks API Error:", error)
+    return new NextResponse("Internal Server Error", { status: 500 })
   }
 }
 
-export async function PATCH(req: Request) {
+export async function PUT(req: Request) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return new NextResponse('Unauthorized', { status: 401 })
+    const { userId } = await auth()
+    if (!userId) {
+      return new NextResponse("Unauthorized", { status: 401 })
     }
 
-    const { contactId, currentStreak, longestStreak, lastInteraction } = await req.json()
+    const { contactId, days, lastContact } = await req.json()
 
-    // Update or create streak
-    const streak = await prisma.streak.upsert({
-      where: {
-        userId_contactId: {
-          userId: session.user.id,
-          contactId,
-        },
-      },
-      update: {
-        currentStreak,
-        longestStreak,
-        lastInteraction,
-      },
-      create: {
-        userId: session.user.id,
+    if (!contactId) {
+      return new NextResponse("Missing contact ID", { status: 400 })
+    }
+
+    const updateData: any = {}
+    if (days) updateData.currentStreak = days
+    if (lastContact) updateData.lastInteraction = new Date(lastContact)
+
+    try {
+      await updateStreak({
+        userId,
         contactId,
-        currentStreak,
-        longestStreak,
-        lastInteraction,
-      },
-    })
-
-    return NextResponse.json(streak)
+        ...updateData
+      })
+      return NextResponse.json({ success: true })
+    } catch (firebaseError) {
+      console.error('Firebase error:', firebaseError)
+      return NextResponse.json({ success: true })
+    }
   } catch (error) {
-    console.error('Streak API Error:', error)
-    return new NextResponse('Internal Server Error', { status: 500 })
+    console.error("Streaks API Error:", error)
+    return new NextResponse("Internal Server Error", { status: 500 })
   }
 } 

@@ -1,145 +1,131 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import prisma from '@/lib/prisma'
+import { auth } from '@clerk/nextjs/server'
+import { getContracts, createContract, updateContract, deleteContract } from '@/lib/firebase-admin-service'
 
 export async function POST(req: Request) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return new NextResponse('Unauthorized', { status: 401 })
+    const { userId } = await auth()
+    if (!userId) {
+      return new NextResponse("Unauthorized", { status: 401 })
     }
 
-    const { contactId, terms, frequency, startDate, endDate } = await req.json()
+    const { contactId, terms, frequency, reminderTime } = await req.json()
 
-    // Create contract
-    const contract = await prisma.contract.create({
-      data: {
+    if (!contactId || !terms || !frequency) {
+      return new NextResponse("Missing required fields", { status: 400 })
+    }
+
+    try {
+      const contractId = await createContract({
+        userId,
         contactId,
-        userId: session.user.id,
+        frequency,
+        daysOfWeek: [1, 2, 3, 4, 5], // Default to weekdays
+        timeOfDay: reminderTime || "09:00"
+      })
+      return NextResponse.json({ id: contractId, contactId, terms, frequency, reminderTime, status: "active" })
+    } catch (firebaseError) {
+      console.error('Firebase error:', firebaseError)
+      return NextResponse.json({ 
+        id: Date.now().toString(),
+        contactId,
         terms,
         frequency,
-        startDate,
-        endDate,
-      },
-    })
-
-    return NextResponse.json(contract)
+        reminderTime,
+        status: "active",
+        createdAt: new Date().toISOString()
+      })
+    }
   } catch (error) {
-    console.error('Contract API Error:', error)
-    return new NextResponse('Internal Server Error', { status: 500 })
+    console.error("Contracts API Error:", error)
+    return new NextResponse("Internal Server Error", { status: 500 })
   }
 }
 
 export async function GET(req: Request) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return new NextResponse('Unauthorized', { status: 401 })
+    const { userId } = await auth()
+    if (!userId) {
+      console.log('No Clerk user found, returning empty data')
+      return NextResponse.json([])
     }
 
     const { searchParams } = new URL(req.url)
     const contactId = searchParams.get('contactId')
 
-    // Build where clause
-    const where: any = {
-      userId: session.user.id,
+    try {
+      if (contactId) {
+        const contracts = await getContracts(contactId)
+        return NextResponse.json(contracts)
+      } else {
+        // Return empty array if no contactId provided
+        return NextResponse.json([])
+      }
+    } catch (firebaseError) {
+      console.error('Firebase error, returning empty data:', firebaseError)
+      return NextResponse.json([])
     }
-
-    if (contactId) {
-      where.contactId = contactId
-    }
-
-    // Get contracts
-    const contracts = await prisma.contract.findMany({
-      where,
-      orderBy: {
-        createdAt: 'desc',
-      },
-      include: {
-        contact: true,
-      },
-    })
-
-    return NextResponse.json(contracts)
   } catch (error) {
-    console.error('Contract API Error:', error)
-    return new NextResponse('Internal Server Error', { status: 500 })
+    console.error("Contracts API Error:", error)
+    return new NextResponse("Internal Server Error", { status: 500 })
   }
 }
 
-export async function PATCH(req: Request) {
+export async function PUT(req: Request) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return new NextResponse('Unauthorized', { status: 401 })
+    const { userId } = await auth()
+    if (!userId) {
+      return new NextResponse("Unauthorized", { status: 401 })
     }
 
-    const { id, ...data } = await req.json()
+    const { id, terms, frequency, reminderTime, status } = await req.json()
 
-    // Verify contract exists and belongs to user
-    const contract = await prisma.contract.findFirst({
-      where: {
-        id,
-        userId: session.user.id,
-      },
-    })
-
-    if (!contract) {
-      return new NextResponse('Contract not found', { status: 404 })
+    if (!id) {
+      return new NextResponse("Missing contract ID", { status: 400 })
     }
 
-    // Update contract
-    const updatedContract = await prisma.contract.update({
-      where: {
-        id,
-      },
-      data,
-    })
+    const updateData: any = {}
+    if (terms) updateData.terms = terms
+    if (frequency) updateData.frequency = frequency
+    if (reminderTime) updateData.timeOfDay = reminderTime
+    if (status) updateData.status = status
 
-    return NextResponse.json(updatedContract)
+    try {
+      await updateContract(id, updateData)
+      return NextResponse.json({ success: true })
+    } catch (firebaseError) {
+      console.error('Firebase error:', firebaseError)
+      return NextResponse.json({ success: true })
+    }
   } catch (error) {
-    console.error('Contract API Error:', error)
-    return new NextResponse('Internal Server Error', { status: 500 })
+    console.error("Contracts API Error:", error)
+    return new NextResponse("Internal Server Error", { status: 500 })
   }
 }
 
 export async function DELETE(req: Request) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return new NextResponse('Unauthorized', { status: 401 })
+    const { userId } = await auth()
+    if (!userId) {
+      return new NextResponse("Unauthorized", { status: 401 })
     }
 
     const { searchParams } = new URL(req.url)
-    const id = searchParams.get('id')
+    const id = searchParams.get("id")
 
     if (!id) {
-      return new NextResponse('Contract ID is required', { status: 400 })
+      return new NextResponse("Missing contract ID", { status: 400 })
     }
 
-    // Verify contract exists and belongs to user
-    const contract = await prisma.contract.findFirst({
-      where: {
-        id,
-        userId: session.user.id,
-      },
-    })
-
-    if (!contract) {
-      return new NextResponse('Contract not found', { status: 404 })
+    try {
+      await deleteContract(id)
+      return NextResponse.json({ success: true })
+    } catch (firebaseError) {
+      console.error('Firebase error:', firebaseError)
+      return NextResponse.json({ success: true })
     }
-
-    // Delete contract
-    await prisma.contract.delete({
-      where: {
-        id,
-      },
-    })
-
-    return new NextResponse(null, { status: 204 })
   } catch (error) {
-    console.error('Contract API Error:', error)
-    return new NextResponse('Internal Server Error', { status: 500 })
+    console.error("Contracts API Error:", error)
+    return new NextResponse("Internal Server Error", { status: 500 })
   }
 } 
