@@ -1,119 +1,161 @@
-'use client';
+"use client"
 
-import { useUser } from '@clerk/nextjs';
-import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { LoopDashboard } from "@/components/LoopDashboard";
-import { ContactList } from "@/components/ContactList";
-import { MessageList } from "@/components/MessageList";
-import { StreakDisplay } from "@/components/StreakDisplay";
-import { ContractList } from "@/components/ContractList";
-import { ContractForm } from "@/components/ContractForm";
-import { MessageAssistant } from "@/components/MessageAssistant";
-import { NotificationSettings } from "@/components/NotificationSettings";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useState, useEffect } from 'react'
+import { useUser } from '@clerk/nextjs'
+import { useRouter } from 'next/navigation'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { LoopDashboard } from '@/components/LoopDashboard'
+import { ContactList } from '@/components/ContactList'
+import { ContractList } from '@/components/ContractList'
+import { ContractForm } from '@/components/ContractForm'
+import { MessageList } from '@/components/MessageList'
+import { MessageAssistant } from '@/components/MessageAssistant'
+import { StreakDisplay } from '@/components/StreakDisplay'
+import { NotificationSettings } from '@/components/NotificationSettings'
+import { EmotionalIntelligence } from '@/components/dashboard/EmotionalIntelligence'
+import { TeamHealth } from '@/components/dashboard/TeamHealth'
+import { ReminderManager } from '@/components/ReminderManager'
+import { useNotifications } from '@/hooks/useNotifications'
+import { Heart, Users, BarChart3, MessageSquare, Clock, Settings } from 'lucide-react'
 
 export default function DashboardPage() {
   const { isLoaded, isSignedIn, user } = useUser();
   const router = useRouter();
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
+  const { reminders, loading: remindersLoading } = useNotifications()
 
   console.log('Dashboard page loaded, user:', user?.id, 'isSignedIn:', isSignedIn)
 
   useEffect(() => {
     if (isLoaded && !isSignedIn) {
-      router.push('/');
+      router.push('/sign-in');
     }
   }, [isLoaded, isSignedIn, router]);
 
   if (!isLoaded || !isSignedIn || !user) {
-    return null;
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+      </div>
+    );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900">PingChain</h1>
-          <p className="mt-2 text-lg text-gray-600">
-            Never leave important conversations hanging.
-          </p>
-        </div>
+    <div className="container mx-auto p-6">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <p className="text-muted-foreground">Manage your communication loops and relationships</p>
+      </div>
 
-        {/* Main Dashboard with Tabs */}
-        <Tabs defaultValue="loop-dashboard" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="loop-dashboard">Loop Dashboard</TabsTrigger>
-            <TabsTrigger value="contacts">Contacts</TabsTrigger>
-            <TabsTrigger value="messages">Messages</TabsTrigger>
-            <TabsTrigger value="settings">Settings</TabsTrigger>
-          </TabsList>
+      {/* Main Dashboard with Tabs */}
+      <Tabs defaultValue="loop-dashboard" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-7">
+          <TabsTrigger value="loop-dashboard" className="flex items-center gap-2">
+            <MessageSquare className="h-4 w-4" />
+            Overview
+          </TabsTrigger>
+          <TabsTrigger value="emotional" className="flex items-center gap-2">
+            <Heart className="h-4 w-4" />
+            Emotional IQ
+          </TabsTrigger>
+          <TabsTrigger value="team" className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            Team Health
+          </TabsTrigger>
+          <TabsTrigger value="contacts" className="flex items-center gap-2">
+            Contacts
+          </TabsTrigger>
+          <TabsTrigger value="messages" className="flex items-center gap-2">
+            Messages
+          </TabsTrigger>
+          <TabsTrigger value="reminders" className="flex items-center gap-2">
+            <Clock className="h-4 w-4" />
+            Reminders
+          </TabsTrigger>
+          <TabsTrigger value="settings" className="flex items-center gap-2">
+            <Settings className="h-4 w-4" />
+            Settings
+          </TabsTrigger>
+        </TabsList>
 
-          {/* Loop Dashboard Tab */}
-          <TabsContent value="loop-dashboard" className="space-y-6">
-            <LoopDashboard userId={user.id} />
-          </TabsContent>
+        {/* Loop Dashboard Tab */}
+        <TabsContent value="loop-dashboard" className="space-y-6">
+          <LoopDashboard userId={user.id} />
+        </TabsContent>
 
-          {/* Contacts Tab */}
-          <TabsContent value="contacts" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <ContactList userId={user.id} onContactSelect={setSelectedContactId} />
-              {selectedContactId && (
-                <div className="space-y-6">
-                  <StreakDisplay userId={user.id} />
-                  <ContractList contactId={selectedContactId} />
-                  <ContractForm contactId={selectedContactId} />
-                </div>
-              )}
-            </div>
-          </TabsContent>
+        {/* Emotional Intelligence Tab */}
+        <TabsContent value="emotional" className="space-y-6">
+          <EmotionalIntelligence />
+        </TabsContent>
 
-          {/* Messages Tab */}
-          <TabsContent value="messages" className="space-y-6">
-            {selectedContactId ? (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <MessageList contactId={selectedContactId} />
-                <MessageAssistant 
-                  contactId={selectedContactId} 
-                  onMessageSent={async (messageContent) => {
-                    try {
-                      // Send message to Firebase
-                      const response = await fetch('/api/messages', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          content: messageContent,
-                          contactId: selectedContactId,
-                          platform: 'EMAIL'
-                        })
-                      })
-                      
-                      if (response.ok) {
-                        // Refresh the page to update the dashboard
-                        window.location.reload()
-                      } else {
-                        throw new Error('Failed to send message')
-                      }
-                    } catch (error) {
-                      console.error('Error sending message:', error)
-                    }
-                  }}
-                />
-              </div>
-            ) : (
-              <div className="text-center text-gray-500 py-12">
-                <p>Select a contact from the Contacts tab to view messages</p>
+        {/* Team Health Tab */}
+        <TabsContent value="team" className="space-y-6">
+          <TeamHealth />
+        </TabsContent>
+
+        {/* Contacts Tab */}
+        <TabsContent value="contacts" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <ContactList userId={user.id} onContactSelect={setSelectedContactId} />
+            {selectedContactId && (
+              <div className="space-y-6">
+                <StreakDisplay userId={user.id} />
+                <ContractList contactId={selectedContactId} />
+                <ContractForm contactId={selectedContactId} />
               </div>
             )}
-          </TabsContent>
+          </div>
+        </TabsContent>
 
-          {/* Settings Tab */}
-          <TabsContent value="settings" className="space-y-6">
-            <NotificationSettings />
-          </TabsContent>
-        </Tabs>
-      </div>
+        {/* Messages Tab */}
+        <TabsContent value="messages" className="space-y-6">
+          {selectedContactId ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <MessageList contactId={selectedContactId} />
+              <MessageAssistant 
+                contactId={selectedContactId} 
+                onMessageSent={async (messageContent) => {
+                  try {
+                    // Send message to Firebase
+                    const response = await fetch('/api/messages', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        content: messageContent,
+                        contactId: selectedContactId,
+                        platform: 'EMAIL'
+                      })
+                    })
+                    
+                    if (response.ok) {
+                      // Refresh the page to update the dashboard
+                      window.location.reload()
+                    } else {
+                      throw new Error('Failed to send message')
+                    }
+                  } catch (error) {
+                    console.error('Error sending message:', error)
+                  }
+                }}
+              />
+            </div>
+          ) : (
+            <div className="text-center text-gray-500 py-12">
+              <p>Select a contact from the Contacts tab to view messages</p>
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Reminders Tab */}
+        <TabsContent value="reminders" className="space-y-6">
+          <ReminderManager reminders={reminders} />
+        </TabsContent>
+
+        {/* Settings Tab */}
+        <TabsContent value="settings" className="space-y-6">
+          <NotificationSettings />
+        </TabsContent>
+      </Tabs>
     </div>
-  );
+  )
 } 
