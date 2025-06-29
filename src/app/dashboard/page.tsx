@@ -10,6 +10,7 @@ import { StreakDisplay } from "@/components/StreakDisplay";
 import { ContractList } from "@/components/ContractList";
 import { ContractForm } from "@/components/ContractForm";
 import { MessageAssistant } from "@/components/MessageAssistant";
+import { NotificationSettings } from "@/components/NotificationSettings";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function DashboardPage() {
@@ -42,10 +43,11 @@ export default function DashboardPage() {
 
         {/* Main Dashboard with Tabs */}
         <Tabs defaultValue="loop-dashboard" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="loop-dashboard">Loop Dashboard</TabsTrigger>
             <TabsTrigger value="contacts">Contacts</TabsTrigger>
             <TabsTrigger value="messages">Messages</TabsTrigger>
+            <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
 
           {/* Loop Dashboard Tab */}
@@ -104,6 +106,11 @@ export default function DashboardPage() {
                 <p>Select a contact from the Contacts tab to view messages</p>
               </div>
             )}
+          </TabsContent>
+
+          {/* Settings Tab */}
+          <TabsContent value="settings" className="space-y-6">
+            <NotificationSettings />
           </TabsContent>
         </Tabs>
       </div>

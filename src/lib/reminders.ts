@@ -447,4 +447,144 @@ function calculateNextCheckin(
   
   next.setHours(hours, minutes, 0, 0)
   return next
+}
+
+import { db } from './firebase'
+import { collection, addDoc, getDocs, updateDoc, deleteDoc, doc, query, where, orderBy, Timestamp } from 'firebase/firestore'
+import { ReminderNotification } from './notifications'
+
+export interface FirestoreReminder {
+  id?: string
+  userId: string
+  contactId: string
+  contactName: string
+  message: string
+  type: 'overdue' | 'question' | 'scheduled' | 'urgent'
+  priority: 'high' | 'medium' | 'low'
+  createdAt: Timestamp
+  scheduledFor?: Timestamp
+  sentAt?: Timestamp
+  status: 'pending' | 'sent' | 'dismissed'
+}
+
+// Convert ReminderNotification to Firestore format
+const toFirestore = (reminder: ReminderNotification, userId: string): Omit<FirestoreReminder, 'id'> => {
+  const firestoreReminder: Omit<FirestoreReminder, 'id'> = {
+    userId,
+    contactId: reminder.contactId,
+    contactName: reminder.contactName,
+    message: reminder.message,
+    type: reminder.type,
+    priority: reminder.priority,
+    createdAt: Timestamp.fromDate(reminder.createdAt),
+    status: reminder.status
+  }
+
+  // Only add scheduledFor if it exists
+  if (reminder.scheduledFor) {
+    firestoreReminder.scheduledFor = Timestamp.fromDate(reminder.scheduledFor)
+  }
+
+  // Only add sentAt if it exists
+  if (reminder.sentAt) {
+    firestoreReminder.sentAt = Timestamp.fromDate(reminder.sentAt)
+  }
+
+  return firestoreReminder
+}
+
+// Convert Firestore format to ReminderNotification
+const fromFirestore = (doc: any): ReminderNotification => ({
+  id: doc.id,
+  contactId: doc.contactId,
+  contactName: doc.contactName,
+  message: doc.message,
+  type: doc.type,
+  priority: doc.priority,
+  createdAt: doc.createdAt.toDate(),
+  scheduledFor: doc.scheduledFor?.toDate(),
+  sentAt: doc.sentAt?.toDate(),
+  status: doc.status
+})
+
+export class ReminderService {
+  private static instance: ReminderService
+
+  static getInstance(): ReminderService {
+    if (!ReminderService.instance) {
+      ReminderService.instance = new ReminderService()
+    }
+    return ReminderService.instance
+  }
+
+  async createReminder(reminder: ReminderNotification, userId: string): Promise<string> {
+    try {
+      console.log('Creating reminder:', { reminder, userId })
+      const firestoreReminder = toFirestore(reminder, userId)
+      console.log('Firestore reminder data:', firestoreReminder)
+      const docRef = await addDoc(collection(db, 'reminders'), firestoreReminder)
+      console.log('Reminder created with ID:', docRef.id)
+      return docRef.id
+    } catch (error) {
+      console.error('Error creating reminder:', error)
+      throw error
+    }
+  }
+
+  async getReminders(userId: string): Promise<ReminderNotification[]> {
+    try {
+      const q = query(
+        collection(db, 'reminders'),
+        where('userId', '==', userId),
+        orderBy('createdAt', 'desc')
+      )
+      const querySnapshot = await getDocs(q)
+      return querySnapshot.docs.map(doc => fromFirestore({ id: doc.id, ...doc.data() }))
+    } catch (error) {
+      console.error('Error fetching reminders:', error)
+      return []
+    }
+  }
+
+  async updateReminder(reminderId: string, updates: Partial<ReminderNotification>): Promise<void> {
+    try {
+      const docRef = doc(db, 'reminders', reminderId)
+      const firestoreUpdates: any = {}
+      
+      if (updates.status) firestoreUpdates.status = updates.status
+      if (updates.sentAt) firestoreUpdates.sentAt = Timestamp.fromDate(updates.sentAt)
+      if (updates.scheduledFor) firestoreUpdates.scheduledFor = Timestamp.fromDate(updates.scheduledFor)
+      
+      await updateDoc(docRef, firestoreUpdates)
+    } catch (error) {
+      console.error('Error updating reminder:', error)
+      throw error
+    }
+  }
+
+  async deleteReminder(reminderId: string): Promise<void> {
+    try {
+      const docRef = doc(db, 'reminders', reminderId)
+      await deleteDoc(docRef)
+    } catch (error) {
+      console.error('Error deleting reminder:', error)
+      throw error
+    }
+  }
+
+  async getPendingReminders(userId: string): Promise<ReminderNotification[]> {
+    try {
+      const q = query(
+        collection(db, 'reminders'),
+        where('userId', '==', userId),
+        where('status', '==', 'pending'),
+        orderBy('createdAt', 'desc')
+      )
+      const querySnapshot = await getDocs(q)
+      return querySnapshot.docs.map(doc => fromFirestore({ id: doc.id, ...doc.data() }))
+    } catch (error) {
+      console.error('Error fetching pending reminders:', error)
+      return []
+    }
+  }
 } 

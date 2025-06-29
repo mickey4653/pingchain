@@ -52,5 +52,12 @@ service cloud.firestore {
       allow create, update: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
       allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
     }
+
+    // Reminders collection
+    match /reminders/{reminderId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
   }
 } 

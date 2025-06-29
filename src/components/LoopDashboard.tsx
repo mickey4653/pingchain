@@ -22,6 +22,10 @@ import { generateSmartTemplateMessage } from '@/lib/huggingface'
 import { scheduleReminder, createCommunicationContract } from '@/lib/reminders'
 import { PendingReplies } from '@/components/dashboard/PendingReplies'
 import { MessageAssistant } from '@/components/MessageAssistant'
+import { useNotifications } from '@/hooks/useNotifications'
+import { ReminderManager } from '@/components/ReminderManager'
+import { ReminderNotification } from '@/lib/notifications'
+import { useAuth } from '@clerk/nextjs'
 
 interface LoopDashboardProps {
   userId: string
@@ -29,10 +33,14 @@ interface LoopDashboardProps {
 
 export function LoopDashboard({ userId }: LoopDashboardProps) {
   const { toast } = useToast()
+  const { getToken } = useAuth()
   const [loading, setLoading] = useState(true)
   const [contacts, setContacts] = useState<Contact[]>([])
   const [messages, setMessages] = useState<Message[]>([])
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null)
+
+  // Initialize notification system with real user settings
+  const notifications = useNotifications()
 
   // Refresh function to reload data
   const refreshData = useCallback(async () => {
@@ -92,6 +100,51 @@ export function LoopDashboard({ userId }: LoopDashboardProps) {
     calculateStats(contacts, messages), 
     [contacts, messages]
   )
+
+  // Auto-create reminders for overdue conversations and unanswered questions
+  useEffect(() => {
+    if (!notifications.isReady || contacts.length === 0 || messages.length === 0) return
+
+    const createReminders = async () => {
+      // Create reminders for overdue conversations (pending replies)
+      for (const reply of pendingReplies) {
+        const hoursSinceLastMessage = reply.hoursSinceReceived / 3600 // Convert seconds to hours
+        
+        if (hoursSinceLastMessage >= 24) { // Remind after 24 hours
+          await notifications.createOverdueReminder(
+            reply.contact.id,
+            reply.contact.name,
+            reply.message.content,
+            hoursSinceLastMessage
+          )
+        }
+      }
+
+      // Create reminders for unanswered questions
+      for (const contact of contacts) {
+        const contactMessages = messages.filter(m => m.contactId === contact.id)
+        const messageContents = contactMessages.map(m => m.content)
+        const questions = notifications.detectQuestions(messageContents)
+        
+        // Find the most recent question that hasn't been answered
+        const lastQuestion = questions[questions.length - 1]
+        if (lastQuestion) {
+          const lastMessage = contactMessages[contactMessages.length - 1]
+          const hoursSinceQuestion = (Date.now() - getMessageDate(lastMessage).getTime()) / (1000 * 60 * 60)
+          
+          if (hoursSinceQuestion >= 12) { // Remind after 12 hours for questions
+            await notifications.createQuestionReminder(
+              contact.id,
+              contact.name,
+              lastQuestion
+            )
+          }
+        }
+      }
+    }
+
+    createReminders()
+  }, [notifications.isReady, contacts, messages, pendingReplies, notifications])
 
   // Load data on mount
   useEffect(() => {
@@ -441,20 +494,19 @@ export function LoopDashboard({ userId }: LoopDashboardProps) {
   const handleClearFirebaseData = async () => {
     try {
       const response = await fetch('/api/test-data', {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${await getToken()}`
+        }
       })
-      
+
       if (response.ok) {
-        const result = await response.json()
+        setContacts([])
+        setMessages([])
         toast({
-          title: "Firebase Data Cleared!",
-          description: `Cleared ${result.deletedContacts} contacts and ${result.deletedMessages} messages.`,
+          title: "Data Cleared",
+          description: "All Firebase test data has been cleared.",
         })
-        
-        // Refresh the dashboard to load the empty state
-        window.location.reload()
-      } else {
-        throw new Error('Failed to clear Firebase data')
       }
     } catch (error) {
       console.error('Error clearing Firebase data:', error)
@@ -465,6 +517,17 @@ export function LoopDashboard({ userId }: LoopDashboardProps) {
       })
     }
   }
+
+  const handleReminderDismiss = useCallback((reminderId: string) => {
+    notifications.updateReminder(reminderId, { status: 'dismissed' })
+  }, [notifications])
+
+  const handleReminderRespond = useCallback((contactId: string) => {
+    const contact = contacts.find(c => c.id === contactId)
+    if (contact) {
+      setSelectedContact(contact)
+    }
+  }, [contacts])
 
   if (loading) {
     return (
@@ -539,6 +602,23 @@ export function LoopDashboard({ userId }: LoopDashboardProps) {
         onSendMessage={handleSendMessage}
         getMessageDate={getMessageDate}
       />
+
+      {/* Active Reminders */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Bell className="h-5 w-5" />
+            Active Reminders
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ReminderManager
+            reminders={notifications.reminders}
+            onDismiss={handleReminderDismiss}
+            onRespond={handleReminderRespond}
+          />
+        </CardContent>
+      </Card>
 
       {/* Message Assistant for Replying */}
       {selectedContact && (
@@ -639,6 +719,51 @@ export function LoopDashboard({ userId }: LoopDashboardProps) {
             </Button>
             <Button onClick={refreshData} variant="outline">
               Refresh Data
+            </Button>
+            <Button 
+              onClick={async () => {
+                if (notifications.isReady) {
+                  try {
+                    const reminderId = await notifications.createReminder(
+                      'test',
+                      'Test Contact',
+                      'This is a test notification to verify the system is working!',
+                      'scheduled',
+                      'high'
+                    )
+                    if (reminderId) {
+                      toast({
+                        title: 'Test Reminder Created',
+                        description: `Reminder ID: ${reminderId}. Check the Active Reminders section below.`,
+                        duration: 5000,
+                      })
+                    } else {
+                      toast({
+                        title: 'Error',
+                        description: 'Failed to create test reminder.',
+                        variant: 'destructive',
+                      })
+                    }
+                  } catch (error) {
+                    console.error('Test notification error:', error)
+                    toast({
+                      title: 'Error',
+                      description: 'Failed to create test reminder.',
+                      variant: 'destructive',
+                    })
+                  }
+                } else {
+                  toast({
+                    title: 'Not Ready',
+                    description: 'Notification system is not ready yet.',
+                    variant: 'destructive',
+                  })
+                }
+              }}
+              variant="outline"
+              disabled={!notifications.isReady}
+            >
+              Test Notification
             </Button>
           </div>
         </CardContent>

@@ -55,6 +55,14 @@ export default function Navigation() {
                       Dashboard
                     </Link>
                   )}
+                  {isSignedIn && (
+                    <Link
+                      href="/settings"
+                      className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center border-b-2 px-1 pt-1 text-sm font-medium"
+                    >
+                      Settings
+                    </Link>
+                  )}
                 </div>
               </div>
               <div className="flex items-center">
@@ -112,6 +120,15 @@ export default function Navigation() {
                   className="border-transparent text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700 block border-l-4 py-2 pl-3 pr-4 text-base font-medium"
                 >
                   Dashboard
+                </Disclosure.Button>
+              )}
+              {isSignedIn && (
+                <Disclosure.Button
+                  as={Link}
+                  href="/settings"
+                  className="border-transparent text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700 block border-l-4 py-2 pl-3 pr-4 text-base font-medium"
+                >
+                  Settings
                 </Disclosure.Button>
               )}
             </div>
