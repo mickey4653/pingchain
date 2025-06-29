@@ -19,6 +19,7 @@ import { AIAnalytics } from '@/components/dashboard/AIAnalytics'
 import { ReminderManager } from '@/components/ReminderManager'
 import { useNotifications } from '@/hooks/useNotifications'
 import { Heart, Users, BarChart3, MessageSquare, Clock, Settings, Brain, Zap } from 'lucide-react'
+import { TeamManagement } from '@/components/dashboard/TeamManagement'
 
 export default function DashboardPage() {
   const { isLoaded, isSignedIn, user } = useUser();
@@ -51,7 +52,7 @@ export default function DashboardPage() {
 
       {/* Main Dashboard with Tabs */}
       <Tabs defaultValue="loop-dashboard" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-9">
+        <TabsList className="grid w-full grid-cols-10">
           <TabsTrigger value="loop-dashboard" className="flex items-center gap-2">
             <MessageSquare className="h-4 w-4" />
             Overview
@@ -63,6 +64,10 @@ export default function DashboardPage() {
           <TabsTrigger value="team" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
             Team Health
+          </TabsTrigger>
+          <TabsTrigger value="team-management" className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            Team Management
           </TabsTrigger>
           <TabsTrigger value="memory" className="flex items-center gap-2">
             <Brain className="h-4 w-4" />
@@ -101,6 +106,11 @@ export default function DashboardPage() {
         {/* Team Health Tab */}
         <TabsContent value="team" className="space-y-6">
           <TeamHealth />
+        </TabsContent>
+
+        {/* Team Management Tab */}
+        <TabsContent value="team-management" className="space-y-6">
+          <TeamManagement />
         </TabsContent>
 
         {/* Conversation Memory Tab */}
