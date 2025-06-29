@@ -14,9 +14,11 @@ import { StreakDisplay } from '@/components/StreakDisplay'
 import { NotificationSettings } from '@/components/NotificationSettings'
 import { EmotionalIntelligence } from '@/components/dashboard/EmotionalIntelligence'
 import { TeamHealth } from '@/components/dashboard/TeamHealth'
+import { ConversationMemory } from '@/components/dashboard/ConversationMemory'
+import { AIAnalytics } from '@/components/dashboard/AIAnalytics'
 import { ReminderManager } from '@/components/ReminderManager'
 import { useNotifications } from '@/hooks/useNotifications'
-import { Heart, Users, BarChart3, MessageSquare, Clock, Settings } from 'lucide-react'
+import { Heart, Users, BarChart3, MessageSquare, Clock, Settings, Brain, Zap } from 'lucide-react'
 
 export default function DashboardPage() {
   const { isLoaded, isSignedIn, user } = useUser();
@@ -49,7 +51,7 @@ export default function DashboardPage() {
 
       {/* Main Dashboard with Tabs */}
       <Tabs defaultValue="loop-dashboard" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-7">
+        <TabsList className="grid w-full grid-cols-9">
           <TabsTrigger value="loop-dashboard" className="flex items-center gap-2">
             <MessageSquare className="h-4 w-4" />
             Overview
@@ -61,6 +63,14 @@ export default function DashboardPage() {
           <TabsTrigger value="team" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
             Team Health
+          </TabsTrigger>
+          <TabsTrigger value="memory" className="flex items-center gap-2">
+            <Brain className="h-4 w-4" />
+            Memory
+          </TabsTrigger>
+          <TabsTrigger value="ai-analytics" className="flex items-center gap-2">
+            <Zap className="h-4 w-4" />
+            AI Analytics
           </TabsTrigger>
           <TabsTrigger value="contacts" className="flex items-center gap-2">
             Contacts
@@ -91,6 +101,16 @@ export default function DashboardPage() {
         {/* Team Health Tab */}
         <TabsContent value="team" className="space-y-6">
           <TeamHealth />
+        </TabsContent>
+
+        {/* Conversation Memory Tab */}
+        <TabsContent value="memory" className="space-y-6">
+          <ConversationMemory contactId={selectedContactId || undefined} />
+        </TabsContent>
+
+        {/* AI Analytics Tab */}
+        <TabsContent value="ai-analytics" className="space-y-6">
+          <AIAnalytics />
         </TabsContent>
 
         {/* Contacts Tab */}
