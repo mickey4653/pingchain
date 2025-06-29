@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -14,6 +14,8 @@ import { Team, TeamMember, TeamRole, TeamAnalytics } from '@/lib/team-features/t
 import { SharedContacts } from './SharedContacts'
 import { TeamMessaging } from './TeamMessaging'
 import { TeamActivity } from './TeamActivity'
+import { useUser } from '@clerk/nextjs'
+import { io } from 'socket.io-client'
 
 interface TeamManagementProps {
   loading?: boolean
@@ -30,6 +32,9 @@ export function TeamManagement({ loading = false }: TeamManagementProps) {
   const [showInviteMember, setShowInviteMember] = useState(false)
   const [newTeamData, setNewTeamData] = useState({ name: '', description: '' })
   const [inviteData, setInviteData] = useState({ email: '', role: 'member' as TeamRole })
+  const [presence, setPresence] = useState<any[]>([])
+  const { user } = useUser()
+  const socketRef = useRef<any>(null)
 
   useEffect(() => {
     loadTeams()
@@ -40,6 +45,33 @@ export function TeamManagement({ loading = false }: TeamManagementProps) {
       loadTeamDetails(selectedTeam.id)
     }
   }, [selectedTeam])
+
+  useEffect(() => {
+    if (selectedTeam && user) {
+      // Connect to socket.io server
+      if (!socketRef.current) {
+        socketRef.current = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001')
+      }
+      const socket = socketRef.current
+      socket.emit('join-team', selectedTeam.id)
+      socket.emit('update-presence', {
+        userId: user.id,
+        teamId: selectedTeam.id,
+        status: 'online',
+        lastSeen: new Date(),
+        currentActivity: 'team-management'
+      })
+      socket.on('presence-updated', (data: any) => {
+        // Fetch updated presence list
+        fetch(`/api/teams/${selectedTeam.id}/members`).then(res => res.json()).then(res => setPresence(res.members))
+      })
+      // Initial fetch
+      fetch(`/api/teams/${selectedTeam.id}/members`).then(res => res.json()).then(res => setPresence(res.members))
+      return () => {
+        socket.disconnect()
+      }
+    }
+  }, [selectedTeam, user])
 
   const loadTeams = async () => {
     setIsLoading(true)
@@ -309,6 +341,16 @@ export function TeamManagement({ loading = false }: TeamManagementProps) {
                 </div>
               </CardHeader>
               <CardContent>
+                {/* Presence Bar */}
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xs text-muted-foreground">Active now:</span>
+                  {presence.filter((m: any) => m.status === 'online').map((member: any) => (
+                    <span key={member.id} className="text-xs px-2 py-1 rounded bg-green-100 text-green-800 mr-1">
+                      {member.name || member.id.slice(-4)}
+                    </span>
+                  ))}
+                </div>
+                {/* Team Members List */}
                 <div className="space-y-3">
                   {teamMembers.map((member) => (
                     <div key={member.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">

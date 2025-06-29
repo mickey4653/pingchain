@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -10,6 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Users, Share2, Eye, Edit, Trash2, Calendar, User, Lock, Unlock } from 'lucide-react'
 import { SharedContact } from '@/lib/team-features/types'
+import { useUser } from '@clerk/nextjs'
+import { io } from 'socket.io-client'
 
 interface SharedContactsProps {
   teamId: string
@@ -26,6 +28,10 @@ export function SharedContacts({ teamId, loading = false }: SharedContactsProps)
     permissions: ['view'],
     notes: ''
   })
+  const [editingContactId, setEditingContactId] = useState<string | null>(null)
+  const [editingUsers, setEditingUsers] = useState<{ [contactId: string]: string[] }>({})
+  const { user } = useUser()
+  const socketRef = useRef<any>(null)
 
   useEffect(() => {
     if (teamId) {
@@ -33,6 +39,39 @@ export function SharedContacts({ teamId, loading = false }: SharedContactsProps)
       loadUserContacts()
     }
   }, [teamId])
+
+  useEffect(() => {
+    if (teamId && user) {
+      if (!socketRef.current) {
+        socketRef.current = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001')
+      }
+      const socket = socketRef.current
+      socket.emit('join-team', teamId)
+      socket.on('edit-started', ({ userId, field }: any) => {
+        setEditingUsers((prev) => {
+          const contactId = field
+          const users = prev[contactId] || []
+          if (!users.includes(userId)) {
+            return { ...prev, [contactId]: [...users, userId] }
+          }
+          return prev
+        })
+      })
+      socket.on('edit-updated', ({ userId, field }: any) => {
+        // Optionally update UI for live changes
+      })
+      socket.on('edit-stopped', ({ userId, field }: any) => {
+        setEditingUsers((prev) => {
+          const contactId = field
+          const users = (prev[contactId] || []).filter((id) => id !== userId)
+          return { ...prev, [contactId]: users }
+        })
+      })
+      return () => {
+        socket.disconnect()
+      }
+    }
+  }, [teamId, user])
 
   const loadSharedContacts = async () => {
     setIsLoading(true)
@@ -101,6 +140,19 @@ export function SharedContacts({ teamId, loading = false }: SharedContactsProps)
       case 'edit': return 'bg-green-100 text-green-800'
       case 'delete': return 'bg-red-100 text-red-800'
       default: return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  const handleEditStart = (contactId: string) => {
+    setEditingContactId(contactId)
+    if (socketRef.current && user) {
+      socketRef.current.emit('edit-start', teamId, user.id, contactId)
+    }
+  }
+  const handleEditStop = (contactId: string) => {
+    setEditingContactId(null)
+    if (socketRef.current && user) {
+      socketRef.current.emit('edit-stop', teamId, user.id, contactId)
     }
   }
 
@@ -243,6 +295,12 @@ export function SharedContacts({ teamId, loading = false }: SharedContactsProps)
                         <div className="text-sm text-muted-foreground">
                           Shared by: User {sharedContact.sharedBy.slice(-4)}
                         </div>
+                        {/* Live Editing Indicator */}
+                        {editingUsers[sharedContact.contactId]?.length > 0 && (
+                          <div className="text-xs text-blue-600 mt-1">
+                            {editingUsers[sharedContact.contactId].map((id) => `User ${id.slice(-4)}`).join(', ')} editing...
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -251,6 +309,15 @@ export function SharedContacts({ teamId, loading = false }: SharedContactsProps)
                         {sharedContact.sharedAt.toLocaleDateString()}
                       </span>
                     </div>
+                  </div>
+                  {/* Simulate edit start/stop for demo */}
+                  <div className="flex gap-2 mb-2">
+                    <Button size="sm" variant="outline" onClick={() => handleEditStart(sharedContact.contactId)} disabled={editingContactId === sharedContact.contactId}>
+                      Start Editing
+                    </Button>
+                    <Button size="sm" variant="secondary" onClick={() => handleEditStop(sharedContact.contactId)} disabled={editingContactId !== sharedContact.contactId}>
+                      Stop Editing
+                    </Button>
                   </div>
                   
                   <div className="flex items-center justify-between">

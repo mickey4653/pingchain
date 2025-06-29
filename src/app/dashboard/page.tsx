@@ -18,8 +18,11 @@ import { ConversationMemory } from '@/components/dashboard/ConversationMemory'
 import { AIAnalytics } from '@/components/dashboard/AIAnalytics'
 import { ReminderManager } from '@/components/ReminderManager'
 import { useNotifications } from '@/hooks/useNotifications'
-import { Heart, Users, BarChart3, MessageSquare, Clock, Settings, Brain, Zap } from 'lucide-react'
+import { Heart, Users, BarChart3, MessageSquare, Clock, Settings, Brain, Zap, Database, Workflow, TrendingUp } from 'lucide-react'
 import { TeamManagement } from '@/components/dashboard/TeamManagement'
+import { CRMIntegration } from '@/components/dashboard/CRMIntegration'
+import { WorkflowAutomation } from '@/components/dashboard/WorkflowAutomation'
+import { AdvancedAnalytics } from '@/components/dashboard/AdvancedAnalytics'
 
 export default function DashboardPage() {
   const { isLoaded, isSignedIn, user } = useUser();
@@ -52,7 +55,7 @@ export default function DashboardPage() {
 
       {/* Main Dashboard with Tabs */}
       <Tabs defaultValue="loop-dashboard" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-10">
+        <TabsList className="grid w-full grid-cols-13">
           <TabsTrigger value="loop-dashboard" className="flex items-center gap-2">
             <MessageSquare className="h-4 w-4" />
             Overview
@@ -76,6 +79,18 @@ export default function DashboardPage() {
           <TabsTrigger value="ai-analytics" className="flex items-center gap-2">
             <Zap className="h-4 w-4" />
             AI Analytics
+          </TabsTrigger>
+          <TabsTrigger value="advanced-analytics" className="flex items-center gap-2">
+            <TrendingUp className="h-4 w-4" />
+            Analytics
+          </TabsTrigger>
+          <TabsTrigger value="workflow" className="flex items-center gap-2">
+            <Workflow className="h-4 w-4" />
+            Workflows
+          </TabsTrigger>
+          <TabsTrigger value="crm" className="flex items-center gap-2">
+            <Database className="h-4 w-4" />
+            CRM
           </TabsTrigger>
           <TabsTrigger value="contacts" className="flex items-center gap-2">
             Contacts
@@ -121,6 +136,21 @@ export default function DashboardPage() {
         {/* AI Analytics Tab */}
         <TabsContent value="ai-analytics" className="space-y-6">
           <AIAnalytics />
+        </TabsContent>
+
+        {/* Advanced Analytics Tab */}
+        <TabsContent value="advanced-analytics" className="space-y-6">
+          <AdvancedAnalytics userId={user.id} />
+        </TabsContent>
+
+        {/* Workflow Automation Tab */}
+        <TabsContent value="workflow" className="space-y-6">
+          <WorkflowAutomation />
+        </TabsContent>
+
+        {/* CRM Integration Tab */}
+        <TabsContent value="crm" className="space-y-6">
+          <CRMIntegration />
         </TabsContent>
 
         {/* Contacts Tab */}

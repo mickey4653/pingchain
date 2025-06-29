@@ -9,6 +9,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { MessageSquare, Send, User, Calendar, Eye, Share2, Clock, AlertCircle } from 'lucide-react'
 import { TeamMessage } from '@/lib/team-features/types'
+import { useUser } from '@clerk/nextjs'
+import { io } from 'socket.io-client'
 
 interface TeamMessagingProps {
   teamId: string
@@ -22,7 +24,42 @@ export function TeamMessaging({ teamId, loading = false }: TeamMessagingProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [userContacts, setUserContacts] = useState<any[]>([])
   const [selectedContact, setSelectedContact] = useState<string>('')
+  const [presence, setPresence] = useState<any[]>([])
+  const [typingUsers, setTypingUsers] = useState<string[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const { user } = useUser()
+  const socketRef = useRef<any>(null)
+
+  useEffect(() => {
+    if (teamId && user) {
+      // Connect to socket.io server
+      if (!socketRef.current) {
+        socketRef.current = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001')
+      }
+      const socket = socketRef.current
+      socket.emit('join-team', teamId)
+      socket.emit('update-presence', {
+        userId: user.id,
+        teamId,
+        status: 'online',
+        lastSeen: new Date(),
+        currentActivity: 'team-messaging'
+      })
+      socket.on('presence-updated', (data: any) => {
+        // Fetch updated presence list
+        fetch(`/api/teams/${teamId}/members`).then(res => res.json()).then(res => setPresence(res.members))
+      })
+      socket.on('typing-started', ({ userId }: any) => {
+        if (userId !== user.id) setTypingUsers((prev) => Array.from(new Set([...prev, userId])))
+      })
+      socket.on('typing-stopped', (userId: string) => {
+        setTypingUsers((prev) => prev.filter((id) => id !== userId))
+      })
+      return () => {
+        socket.disconnect()
+      }
+    }
+  }, [teamId, user])
 
   useEffect(() => {
     if (teamId) {
@@ -132,6 +169,17 @@ export function TeamMessaging({ teamId, loading = false }: TeamMessagingProps) {
     return message.content
   }
 
+  const handleTyping = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setNewMessage(e.target.value)
+    if (socketRef.current && user) {
+      socketRef.current.emit('typing-start', teamId, user.id, 'team-messaging')
+      clearTimeout((socketRef.current as any)._typingTimeout)
+      ;(socketRef.current as any)._typingTimeout = setTimeout(() => {
+        socketRef.current.emit('typing-stop', teamId, user.id)
+      }, 1500)
+    }
+  }
+
   if (loading || isLoading) {
     return (
       <Card>
@@ -155,6 +203,21 @@ export function TeamMessaging({ teamId, loading = false }: TeamMessagingProps) {
 
   return (
     <div className="space-y-6">
+      {/* Presence Bar */}
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-xs text-muted-foreground">Active now:</span>
+        {presence.map((member: any) => (
+          <span key={member.id} className="text-xs px-2 py-1 rounded bg-green-100 text-green-800 mr-1">
+            {member.name || member.id.slice(-4)}
+          </span>
+        ))}
+      </div>
+      {/* Typing Indicator */}
+      {typingUsers.length > 0 && (
+        <div className="text-xs text-blue-600 mb-2">
+          {typingUsers.map((id) => `User ${id.slice(-4)}`).join(', ')} typing...
+        </div>
+      )}
       {/* Messages Display */}
       <Card>
         <CardHeader>
@@ -254,7 +317,7 @@ export function TeamMessaging({ teamId, loading = false }: TeamMessagingProps) {
               <label className="text-sm font-medium">Message</label>
               <Textarea
                 value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
+                onChange={handleTyping}
                 placeholder={`Type your ${messageType.replace('_', ' ')}...`}
                 rows={3}
                 onKeyDown={(e) => {
