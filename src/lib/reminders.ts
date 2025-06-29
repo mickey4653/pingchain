@@ -47,11 +47,12 @@ export interface Reminder {
   userId: string
   contactId: string
   contactName: string
-  type: 'overdue' | 'scheduled' | 'snoozed'
+  type: 'overdue' | 'scheduled' | 'snoozed' | 'checkin'
   message: string
   dueDate: Date
   status: 'pending' | 'sent' | 'dismissed'
   createdAt: Date
+  priority: 'high' | 'medium' | 'low'
 }
 
 export interface ScheduledFollowup {
@@ -63,6 +64,19 @@ export interface ScheduledFollowup {
   message: string
   status: 'pending' | 'sent' | 'cancelled'
   createdAt: Date
+}
+
+export interface CommunicationContract {
+  id: string
+  userId: string
+  contactId: string
+  contactName: string
+  frequency: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly'
+  timeOfDay: string // "09:00"
+  daysOfWeek: number[] // [1,2,3,4,5] for weekdays
+  lastCheckin: Date
+  nextCheckin: Date
+  status: 'active' | 'paused' | 'completed'
 }
 
 // Check for overdue conversations and create reminders
@@ -78,6 +92,10 @@ export function checkForOverdueConversations(
     
     // Create reminders for conversations older than 24 hours
     if (hoursSinceLastMessage >= 24) {
+      const priority: 'high' | 'medium' | 'low' = 
+        hoursSinceLastMessage >= 72 ? 'high' : 
+        hoursSinceLastMessage >= 48 ? 'medium' : 'low'
+      
       reminders.push({
         id: `overdue_${loop.id}`,
         userId,
@@ -87,7 +105,8 @@ export function checkForOverdueConversations(
         message: `You haven't responded to ${loop.contact.name} in ${Math.floor(hoursSinceLastMessage)} hours`,
         dueDate: now,
         status: 'pending',
-        createdAt: now
+        createdAt: now,
+        priority
       })
     }
   })
@@ -98,12 +117,57 @@ export function checkForOverdueConversations(
 // Check scheduled follow-ups
 export function checkScheduledFollowups(userId: string): ScheduledFollowup[] {
   const now = new Date()
+  
+  // Only use localStorage on client-side
+  if (typeof window === 'undefined') {
+    // Server-side: return empty array for now
+    // In production, this would query a database
+    return []
+  }
+  
   const scheduledFollowups = JSON.parse(localStorage.getItem('scheduledFollowups') || '[]')
   
   return scheduledFollowups.filter((followup: ScheduledFollowup) => {
     const scheduledDate = new Date(followup.scheduledFor)
     return scheduledDate <= now && followup.status === 'pending'
   })
+}
+
+// Check communication contracts for due check-ins
+export function checkCommunicationContracts(userId: string): Reminder[] {
+  const now = new Date()
+  
+  // Only use localStorage on client-side
+  if (typeof window === 'undefined') {
+    // Server-side: return empty array for now
+    // In production, this would query a database
+    return []
+  }
+  
+  const contracts = JSON.parse(localStorage.getItem('communicationContracts') || '[]')
+  const reminders: Reminder[] = []
+  
+  contracts.forEach((contract: CommunicationContract) => {
+    if (contract.status !== 'active') return
+    
+    const nextCheckin = new Date(contract.nextCheckin)
+    if (nextCheckin <= now) {
+      reminders.push({
+        id: `contract_${contract.id}`,
+        userId,
+        contactId: contract.contactId,
+        contactName: contract.contactName || 'Contact',
+        type: 'checkin',
+        message: `Scheduled check-in with ${contract.contactName || 'contact'} (${contract.frequency})`,
+        dueDate: now,
+        status: 'pending',
+        createdAt: now,
+        priority: 'medium'
+      })
+    }
+  })
+  
+  return reminders
 }
 
 // Send email reminder using Resend
@@ -178,9 +242,55 @@ export async function sendPushNotification(reminder: Reminder): Promise<boolean>
     // For now, just log the notification
     console.log(`🔔 Push notification: ${reminder.message}`)
     
+    // In a real implementation, this would:
+    // 1. Check if user has push notifications enabled
+    // 2. Send to their device(s)
+    // 3. Handle different notification types
+    
     return true
   } catch (error) {
     console.error('Error sending push notification:', error)
+    return false
+  }
+}
+
+// Send browser notification (works in browser)
+export async function sendBrowserNotification(reminder: Reminder): Promise<boolean> {
+  try {
+    if (typeof window === 'undefined') return false
+    
+    // Check if browser notifications are supported
+    if (!('Notification' in window)) {
+      console.log('Browser notifications not supported')
+      return false
+    }
+    
+    // Check if permission is granted
+    if (Notification.permission === 'granted') {
+      new Notification('Loop Reminder', {
+        body: reminder.message,
+        icon: '/favicon.ico',
+        tag: reminder.id,
+        requireInteraction: true
+      })
+      return true
+    } else if (Notification.permission !== 'denied') {
+      // Request permission
+      const permission = await Notification.requestPermission()
+      if (permission === 'granted') {
+        new Notification('Loop Reminder', {
+          body: reminder.message,
+          icon: '/favicon.ico',
+          tag: reminder.id,
+          requireInteraction: true
+        })
+        return true
+      }
+    }
+    
+    return false
+  } catch (error) {
+    console.error('Error sending browser notification:', error)
     return false
   }
 }
@@ -193,15 +303,148 @@ export async function processReminders(userId: string, openLoops: any[]): Promis
   // Check scheduled follow-ups
   const scheduledFollowups = checkScheduledFollowups(userId)
   
-  // Process overdue reminders
-  for (const reminder of overdueReminders) {
+  // Check communication contracts
+  const contractReminders = checkCommunicationContracts(userId)
+  
+  // Combine all reminders
+  const allReminders = [...overdueReminders, ...contractReminders]
+  
+  // Process overdue and contract reminders
+  for (const reminder of allReminders) {
+    console.log(`Processing reminder: ${reminder.message}`)
+    
+    // Send email reminder
     await sendEmailReminderWithResend(reminder)
+    
+    // Send push notification
     await sendPushNotification(reminder)
+    
+    // Send browser notification
+    await sendBrowserNotification(reminder)
+    
+    // Mark as sent
+    reminder.status = 'sent'
   }
   
   // Process scheduled follow-ups
   for (const followup of scheduledFollowups) {
     console.log(`📅 Scheduled follow-up due: ${followup.message}`)
     await sendScheduledFollowupEmail(followup)
+    
+    // Mark as sent
+    followup.status = 'sent'
+    
+    // Update localStorage only on client-side
+    if (typeof window !== 'undefined') {
+      const existing = JSON.parse(localStorage.getItem('scheduledFollowups') || '[]')
+      const updated = existing.map((f: any) => 
+        f.id === followup.id ? { ...f, status: 'sent' } : f
+      )
+      localStorage.setItem('scheduledFollowups', JSON.stringify(updated))
+    }
   }
+  
+  console.log(`✅ Processed ${allReminders.length} reminders and ${scheduledFollowups.length} follow-ups`)
+}
+
+// Schedule a reminder for later
+export function scheduleReminder(
+  userId: string,
+  contactId: string,
+  contactName: string,
+  message: string,
+  delayHours: number = 1
+): void {
+  // Only work on client-side
+  if (typeof window === 'undefined') {
+    console.log('scheduleReminder called on server-side, skipping')
+    return
+  }
+  
+  const reminder = {
+    id: `scheduled_${Date.now()}`,
+    userId,
+    contactId,
+    contactName,
+    scheduledFor: new Date(Date.now() + delayHours * 60 * 60 * 1000).toISOString(),
+    message,
+    status: 'pending'
+  }
+  
+  const existing = JSON.parse(localStorage.getItem('scheduledFollowups') || '[]')
+  localStorage.setItem('scheduledFollowups', JSON.stringify([...existing, reminder]))
+  
+  console.log(`📅 Scheduled reminder for ${contactName} in ${delayHours} hour(s)`)
+}
+
+// Create a communication contract
+export function createCommunicationContract(
+  userId: string,
+  contactId: string,
+  contactName: string,
+  frequency: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly',
+  timeOfDay: string = '09:00',
+  daysOfWeek: number[] = [1, 2, 3, 4, 5]
+): void {
+  // Only work on client-side
+  if (typeof window === 'undefined') {
+    console.log('createCommunicationContract called on server-side, skipping')
+    return
+  }
+  
+  const now = new Date()
+  const nextCheckin = calculateNextCheckin(now, frequency, timeOfDay, daysOfWeek)
+  
+  const contract = {
+    id: `contract_${Date.now()}`,
+    userId,
+    contactId,
+    contactName,
+    frequency,
+    timeOfDay,
+    daysOfWeek,
+    lastCheckin: now.toISOString(),
+    nextCheckin: nextCheckin.toISOString(),
+    status: 'active'
+  }
+  
+  const existing = JSON.parse(localStorage.getItem('communicationContracts') || '[]')
+  localStorage.setItem('communicationContracts', JSON.stringify([...existing, contract]))
+  
+  console.log(`📋 Created communication contract with ${contactName} (${frequency})`)
+}
+
+// Calculate next check-in date based on frequency
+function calculateNextCheckin(
+  fromDate: Date,
+  frequency: string,
+  timeOfDay: string,
+  daysOfWeek: number[]
+): Date {
+  const next = new Date(fromDate)
+  const [hours, minutes] = timeOfDay.split(':').map(Number)
+  
+  switch (frequency) {
+    case 'daily':
+      next.setDate(next.getDate() + 1)
+      break
+    case 'weekly':
+      next.setDate(next.getDate() + 7)
+      break
+    case 'biweekly':
+      next.setDate(next.getDate() + 14)
+      break
+    case 'monthly':
+      next.setMonth(next.getMonth() + 1)
+      break
+    case 'quarterly':
+      next.setMonth(next.getMonth() + 3)
+      break
+    case 'yearly':
+      next.setFullYear(next.getFullYear() + 1)
+      break
+  }
+  
+  next.setHours(hours, minutes, 0, 0)
+  return next
 } 

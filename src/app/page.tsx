@@ -31,7 +31,7 @@ const features = [
 export default function Home() {
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null)
   const [contacts, setContacts] = useState<Contact[]>([])
-  const { isSignedIn, userId } = useAuth()
+  const { isSignedIn, userId, getToken } = useAuth()
 
   useEffect(() => {
     if (!userId) return
@@ -116,14 +116,62 @@ export default function Home() {
                 <MessageReminder
                   contactId={selectedContact.id}
                   contact={selectedContact}
-                  onSendMessage={(message) => {
-                    // Handle sending message
+                  onSendMessage={async (messageContent) => {
+                    try {
+                      // Send message to Firebase
+                      const response = await fetch('/api/messages', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          content: messageContent,
+                          contactId: selectedContact.id,
+                          platform: 'EMAIL'
+                        })
+                      })
+                      
+                      if (response.ok) {
+                        // Message sent successfully
+                      } else {
+                        throw new Error('Failed to send message')
+                      }
+                    } catch (error) {
+                      // The MessageReminder component will handle its own error display
+                    }
                   }}
                 />
                 <MessageAssistant
                   contactId={selectedContact.id}
-                  onMessageSent={() => {
-                    // Handle message sent
+                  onMessageSent={async (messageContent) => {
+                    try {
+                      // Send message to Firebase
+                      const messageData = {
+                        content: messageContent,
+                        contactId: selectedContact.id,
+                        platform: 'EMAIL'
+                      }
+                      
+                      // Get the auth token from Clerk
+                      const token = await getToken()
+                      
+                      const response = await fetch('/api/messages', {
+                        method: 'POST',
+                        headers: { 
+                          'Content-Type': 'application/json',
+                          ...(token && { 'Authorization': `Bearer ${token}` })
+                        },
+                        body: JSON.stringify(messageData)
+                      })
+                      
+                      if (response.ok) {
+                        // Try to refresh the page to see if data updates
+                        window.location.reload()
+                      } else {
+                        const errorText = await response.text()
+                        throw new Error(`Failed to send message: ${response.status} - ${errorText}`)
+                      }
+                    } catch (error) {
+                      // The MessageAssistant component will show its own error toast
+                    }
                   }}
                 />
               </>
@@ -139,7 +187,6 @@ export default function Home() {
             {selectedContact ? (
               <>
                 <StreakDisplay
-                  contactId={selectedContact.id}
                   userId={userId!}
                 />
                 <EngagementTracker

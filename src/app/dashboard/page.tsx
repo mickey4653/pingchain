@@ -72,7 +72,32 @@ export default function DashboardPage() {
             {selectedContactId ? (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <MessageList contactId={selectedContactId} />
-                <MessageAssistant contactId={selectedContactId} />
+                <MessageAssistant 
+                  contactId={selectedContactId} 
+                  onMessageSent={async (messageContent) => {
+                    try {
+                      // Send message to Firebase
+                      const response = await fetch('/api/messages', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          content: messageContent,
+                          contactId: selectedContactId,
+                          platform: 'EMAIL'
+                        })
+                      })
+                      
+                      if (response.ok) {
+                        // Refresh the page to update the dashboard
+                        window.location.reload()
+                      } else {
+                        throw new Error('Failed to send message')
+                      }
+                    } catch (error) {
+                      console.error('Error sending message:', error)
+                    }
+                  }}
+                />
               </div>
             ) : (
               <div className="text-center text-gray-500 py-12">
