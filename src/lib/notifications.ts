@@ -4,6 +4,10 @@ export interface NotificationConfig {
   email: boolean
   emailProvider: 'resend' | 'sendgrid' | 'gmail'
   userEmail?: string
+  overdueThreshold?: number // hours
+  questionThreshold?: number // hours
+  scheduledReminders?: boolean
+  highPriorityOnly?: boolean
 }
 
 export interface ReminderNotification {
@@ -23,6 +27,7 @@ export interface ReminderNotification {
 export class BrowserNotificationService {
   private static instance: BrowserNotificationService
   private permission: NotificationPermission = 'default'
+  private notificationQueue: ReminderNotification[] = []
 
   static getInstance(): BrowserNotificationService {
     if (!BrowserNotificationService.instance) {
@@ -56,22 +61,74 @@ export class BrowserNotificationService {
   async sendNotification(reminder: ReminderNotification): Promise<boolean> {
     if (this.permission !== 'granted') {
       const granted = await this.requestPermission()
-      if (!granted) return false
+      if (!granted) {
+        // Queue the notification for later if permission is denied
+        this.notificationQueue.push(reminder)
+        return false
+      }
     }
 
     try {
+      // Close any existing notifications with the same tag
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations()
+        for (const registration of registrations) {
+          const notifications = await registration.getNotifications()
+          notifications.forEach(notification => {
+            if (notification.tag === reminder.id) {
+              notification.close()
+            }
+          })
+        }
+      }
+
       const notification = new Notification('Loop Reminder', {
         body: reminder.message,
         icon: '/favicon.ico',
         tag: reminder.id,
-        requireInteraction: true,
-        data: { reminderId: reminder.id }
+        requireInteraction: reminder.priority === 'high',
+        data: { 
+          reminderId: reminder.id,
+          contactId: reminder.contactId,
+          type: reminder.type
+        },
+        actions: [
+          {
+            action: 'respond',
+            title: 'Respond Now',
+            icon: '/favicon.ico'
+          },
+          {
+            action: 'dismiss',
+            title: 'Dismiss',
+            icon: '/favicon.ico'
+          }
+        ]
       })
 
-      notification.onclick = () => {
+      notification.onclick = (event) => {
+        event.preventDefault()
         window.focus()
         window.location.href = '/dashboard'
         notification.close()
+      }
+
+      notification.onaction = (event) => {
+        if (event.action === 'respond') {
+          window.focus()
+          window.location.href = `/dashboard?contact=${reminder.contactId}`
+        } else if (event.action === 'dismiss') {
+          // Mark reminder as dismissed
+          console.log('Reminder dismissed via notification:', reminder.id)
+        }
+        notification.close()
+      }
+
+      // Auto-close low priority notifications after 10 seconds
+      if (reminder.priority === 'low') {
+        setTimeout(() => {
+          notification.close()
+        }, 10000)
       }
 
       return true
@@ -79,6 +136,31 @@ export class BrowserNotificationService {
       console.error('Error sending browser notification:', error)
       return false
     }
+  }
+
+  // Send queued notifications when permission is granted
+  async sendQueuedNotifications(): Promise<void> {
+    if (this.permission === 'granted' && this.notificationQueue.length > 0) {
+      const queue = [...this.notificationQueue]
+      this.notificationQueue = []
+      
+      for (const reminder of queue) {
+        await this.sendNotification(reminder)
+      }
+    }
+  }
+
+  // Check if notifications are supported and enabled
+  isSupported(): boolean {
+    return typeof window !== 'undefined' && 'Notification' in window
+  }
+
+  // Get current permission status
+  getPermissionStatus(): NotificationPermission {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      return 'denied'
+    }
+    return Notification.permission
   }
 }
 
@@ -325,5 +407,14 @@ export class NotificationOrchestrator {
 
   getEffectivenessStats(contactId: string) {
     return this.effectivenessTracker.getEffectivenessStats(contactId)
+  }
+
+  // Public methods to access internal services
+  getScheduler() {
+    return this.scheduler
+  }
+
+  getEffectivenessTracker() {
+    return this.effectivenessTracker
   }
 } 

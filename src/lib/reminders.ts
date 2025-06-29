@@ -572,6 +572,19 @@ export class ReminderService {
     }
   }
 
+  async clearAllReminders(userId: string): Promise<void> {
+    try {
+      const q = query(collection(db, 'reminders'), where('userId', '==', userId))
+      const querySnapshot = await getDocs(q)
+      
+      const deletePromises = querySnapshot.docs.map(doc => deleteDoc(doc.ref))
+      await Promise.all(deletePromises)
+    } catch (error) {
+      console.error('Error clearing all reminders:', error)
+      throw error
+    }
+  }
+
   async getPendingReminders(userId: string): Promise<ReminderNotification[]> {
     try {
       const q = query(

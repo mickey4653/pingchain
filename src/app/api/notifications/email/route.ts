@@ -41,7 +41,15 @@ class EmailProviderFactory {
         }),
       })
 
-      return response.ok
+      if (!response.ok) {
+        const errorData = await response.text()
+        console.error('Resend API error:', errorData)
+        return false
+      }
+
+      const result = await response.json()
+      console.log('Email sent successfully via Resend:', result)
+      return true
     } catch (error) {
       console.error('Resend email error:', error)
       return false

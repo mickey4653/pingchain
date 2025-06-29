@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useToast } from '@/hooks/use-toast'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -41,6 +41,9 @@ export function LoopDashboard({ userId }: LoopDashboardProps) {
 
   // Initialize notification system with real user settings
   const notifications = useNotifications()
+  
+  // Ref to track if reminders have been created for current data
+  const remindersCreatedRef = useRef<string>('')
 
   // Refresh function to reload data
   const refreshData = useCallback(async () => {
@@ -101,16 +104,32 @@ export function LoopDashboard({ userId }: LoopDashboardProps) {
     [contacts, messages]
   )
 
-  // Auto-create reminders for overdue conversations and unanswered questions
+  // Create automatic reminders based on user settings
   useEffect(() => {
     if (!notifications.isReady || contacts.length === 0 || messages.length === 0) return
 
+    // Create a unique key for the current data state
+    const dataKey = `${contacts.length}-${messages.length}-${pendingReplies.length}`
+    
+    // Only create reminders if data has changed
+    if (remindersCreatedRef.current === dataKey) return
+    
     const createReminders = async () => {
+      const userSettings = notifications.userSettings
+      if (!userSettings) return
+
       // Create reminders for overdue conversations (pending replies)
       for (const reply of pendingReplies) {
         const hoursSinceLastMessage = reply.hoursSinceReceived / 3600 // Convert seconds to hours
         
-        if (hoursSinceLastMessage >= 24) { // Remind after 24 hours
+        // Use user's configured threshold or default to 24 hours
+        const overdueThreshold = userSettings.overdueThreshold || 24
+        
+        if (hoursSinceLastMessage >= overdueThreshold) {
+          const priority: ReminderNotification['priority'] = 
+            hoursSinceLastMessage >= 72 ? 'high' : 
+            hoursSinceLastMessage >= 48 ? 'medium' : 'low'
+
           await notifications.createOverdueReminder(
             reply.contact.id,
             reply.contact.name,
@@ -132,7 +151,10 @@ export function LoopDashboard({ userId }: LoopDashboardProps) {
           const lastMessage = contactMessages[contactMessages.length - 1]
           const hoursSinceQuestion = (Date.now() - getMessageDate(lastMessage).getTime()) / (1000 * 60 * 60)
           
-          if (hoursSinceQuestion >= 12) { // Remind after 12 hours for questions
+          // Use user's configured threshold or default to 12 hours
+          const questionThreshold = userSettings.questionThreshold || 12
+          
+          if (hoursSinceQuestion >= questionThreshold) {
             await notifications.createQuestionReminder(
               contact.id,
               contact.name,
@@ -141,10 +163,33 @@ export function LoopDashboard({ userId }: LoopDashboardProps) {
           }
         }
       }
+
+      // Create scheduled check-in reminders if enabled
+      if (userSettings.scheduledReminders) {
+        // This would integrate with a scheduling system
+        // For now, we'll create a sample scheduled reminder
+        const now = new Date()
+        const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000)
+        
+        // Create a scheduled reminder for the first contact (if any)
+        if (contacts.length > 0) {
+          const contact = contacts[0]
+          await notifications.createScheduledReminder(
+            contact.id,
+            contact.name,
+            tomorrow,
+            `Scheduled check-in with ${contact.name}`
+          )
+        }
+      }
+      
+      // Mark reminders as created for this data state
+      remindersCreatedRef.current = dataKey
     }
 
+    // Only create reminders once when data changes, not on an interval
     createReminders()
-  }, [notifications.isReady, contacts, messages, pendingReplies, notifications])
+  }, [notifications.isReady, contacts.length, messages.length, pendingReplies.length])
 
   // Load data on mount
   useEffect(() => {
@@ -529,6 +574,22 @@ export function LoopDashboard({ userId }: LoopDashboardProps) {
     }
   }, [contacts])
 
+  const handleReminderSnooze = useCallback(async (reminderId: string, hours: number) => {
+    const snoozeUntil = new Date(Date.now() + hours * 60 * 60 * 1000)
+    await notifications.updateReminder(reminderId, { 
+      scheduledFor: snoozeUntil,
+      status: 'pending'
+    })
+  }, [notifications])
+
+  const handleReminderResponseTrack = useCallback(async (reminderId: string) => {
+    // Mark reminder as responded to and track effectiveness
+    await notifications.updateReminder(reminderId, { 
+      status: 'sent',
+      sentAt: new Date()
+    })
+  }, [notifications])
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -616,6 +677,9 @@ export function LoopDashboard({ userId }: LoopDashboardProps) {
             reminders={notifications.reminders}
             onDismiss={handleReminderDismiss}
             onRespond={handleReminderRespond}
+            onSnooze={handleReminderSnooze}
+            onTrackResponse={handleReminderResponseTrack}
+            onClearAll={notifications.clearAllReminders}
           />
         </CardContent>
       </Card>
@@ -764,6 +828,36 @@ export function LoopDashboard({ userId }: LoopDashboardProps) {
               disabled={!notifications.isReady}
             >
               Test Notification
+            </Button>
+            <Button 
+              onClick={async () => {
+                if (notifications.isReady) {
+                  try {
+                    await notifications.clearAllReminders()
+                    toast({
+                      title: 'All Reminders Cleared',
+                      description: 'All reminders have been cleared successfully.',
+                    })
+                  } catch (error) {
+                    console.error('Clear reminders error:', error)
+                    toast({
+                      title: 'Error',
+                      description: 'Failed to clear reminders.',
+                      variant: 'destructive',
+                    })
+                  }
+                } else {
+                  toast({
+                    title: 'Not Ready',
+                    description: 'Notification system is not ready yet.',
+                    variant: 'destructive',
+                  })
+                }
+              }}
+              variant="destructive"
+              disabled={!notifications.isReady}
+            >
+              Clear All Reminders
             </Button>
           </div>
         </CardContent>

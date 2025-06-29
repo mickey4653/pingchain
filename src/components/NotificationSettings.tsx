@@ -24,7 +24,7 @@ interface NotificationSettings {
 }
 
 export function NotificationSettings() {
-  const { userId } = useAuth()
+  const { userId, getToken } = useAuth()
   const { toast } = useToast()
   const notifications = useNotifications()
   
@@ -286,9 +286,13 @@ export function NotificationSettings() {
             <Button 
               onClick={async () => {
                 try {
+                  const token = await getToken()
                   const response = await fetch('/api/notifications/test', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${token}`
+                    },
                     body: JSON.stringify({
                       email: settings.userEmail,
                       provider: settings.emailProvider

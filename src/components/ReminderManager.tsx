@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Clock, Bell, Mail, CheckCircle, XCircle, AlertTriangle } from 'lucide-react'
+import { Clock, Bell, Mail, CheckCircle, XCircle, AlertTriangle, BarChart3, Clock3 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { ReminderNotification } from '@/lib/notifications'
 
@@ -12,11 +12,22 @@ interface ReminderManagerProps {
   reminders: ReminderNotification[]
   onDismiss?: (reminderId: string) => void
   onRespond?: (contactId: string) => void
+  onSnooze?: (reminderId: string, hours: number) => void
+  onTrackResponse?: (reminderId: string) => void
+  onClearAll?: () => void
 }
 
-export function ReminderManager({ reminders, onDismiss, onRespond }: ReminderManagerProps) {
+export function ReminderManager({ 
+  reminders, 
+  onDismiss, 
+  onRespond, 
+  onSnooze,
+  onTrackResponse,
+  onClearAll
+}: ReminderManagerProps) {
   const { toast } = useToast()
   const [filter, setFilter] = useState<'all' | 'pending' | 'sent'>('all')
+  const [showStats, setShowStats] = useState(false)
 
   const filteredReminders = reminders.filter(reminder => {
     if (filter === 'all') return true
@@ -61,10 +72,31 @@ export function ReminderManager({ reminders, onDismiss, onRespond }: ReminderMan
 
   const handleRespond = (contactId: string) => {
     onRespond?.(contactId)
+    onTrackResponse?.(contactId) // Track that user responded
     toast({
       title: 'Opening conversation',
       description: 'Taking you to the conversation...',
     })
+  }
+
+  const handleSnooze = (reminderId: string, hours: number) => {
+    onSnooze?.(reminderId, hours)
+    toast({
+      title: 'Reminder snoozed',
+      description: `Reminder will reappear in ${hours} hour${hours !== 1 ? 's' : ''}.`,
+    })
+  }
+
+  const getEffectivenessStats = () => {
+    const totalReminders = reminders.length
+    const respondedReminders = reminders.filter(r => r.status === 'sent').length
+    const responseRate = totalReminders > 0 ? (respondedReminders / totalReminders) * 100 : 0
+    
+    return {
+      total: totalReminders,
+      responded: respondedReminders,
+      responseRate: Math.round(responseRate)
+    }
   }
 
   if (reminders.length === 0) {
@@ -81,32 +113,84 @@ export function ReminderManager({ reminders, onDismiss, onRespond }: ReminderMan
     )
   }
 
+  const stats = getEffectivenessStats()
+
   return (
     <div className="space-y-4">
-      {/* Filter Controls */}
-      <div className="flex gap-2">
-        <Button
-          variant={filter === 'all' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setFilter('all')}
-        >
-          All ({reminders.length})
-        </Button>
-        <Button
-          variant={filter === 'pending' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setFilter('pending')}
-        >
-          Pending ({reminders.filter(r => r.status === 'pending').length})
-        </Button>
-        <Button
-          variant={filter === 'sent' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setFilter('sent')}
-        >
-          Sent ({reminders.filter(r => r.status === 'sent').length})
-        </Button>
+      {/* Header with Stats */}
+      <div className="flex items-center justify-between">
+        <div className="flex gap-2">
+          <Button
+            variant={filter === 'all' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setFilter('all')}
+          >
+            All ({reminders.length})
+          </Button>
+          <Button
+            variant={filter === 'pending' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setFilter('pending')}
+          >
+            Pending ({reminders.filter(r => r.status === 'pending').length})
+          </Button>
+          <Button
+            variant={filter === 'sent' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setFilter('sent')}
+          >
+            Sent ({reminders.filter(r => r.status === 'sent').length})
+          </Button>
+        </div>
+        
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowStats(!showStats)}
+          >
+            <BarChart3 className="h-4 w-4 mr-2" />
+            Stats
+          </Button>
+          
+          {onClearAll && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => {
+                if (confirm('Are you sure you want to clear all reminders? This action cannot be undone.')) {
+                  onClearAll()
+                }
+              }}
+            >
+              <XCircle className="h-4 w-4 mr-2" />
+              Clear All
+            </Button>
+          )}
+        </div>
       </div>
+
+      {/* Effectiveness Stats */}
+      {showStats && (
+        <Card className="bg-blue-50 border-blue-200">
+          <CardContent className="p-4">
+            <div className="grid grid-cols-3 gap-4 text-center">
+              <div>
+                <div className="text-2xl font-bold text-blue-600">{stats.total}</div>
+                <div className="text-sm text-blue-700">Total Reminders</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-green-600">{stats.responded}</div>
+                <div className="text-sm text-green-700">Responded</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-purple-600">{stats.responseRate}%</div>
+                <div className="text-sm text-purple-700">Response Rate</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Reminders List */}
       <div className="space-y-3">
@@ -155,6 +239,13 @@ export function ReminderManager({ reminders, onDismiss, onRespond }: ReminderMan
                         onClick={() => handleRespond(reminder.contactId)}
                       >
                         Respond
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleSnooze(reminder.id, 1)}
+                      >
+                        <Clock3 className="h-4 w-4" />
                       </Button>
                       <Button
                         size="sm"

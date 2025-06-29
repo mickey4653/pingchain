@@ -14,7 +14,7 @@ export async function POST(req: Request) {
       return new NextResponse('Email is required', { status: 400 })
     }
 
-    // Test email sending - call the email API directly instead of using fetch
+    // Test email sending - call the email API directly
     const emailData = {
       to: email,
       subject: 'Loop - Test Email Notification',
@@ -36,16 +36,30 @@ export async function POST(req: Request) {
       provider: provider || 'resend'
     }
 
-    // For now, let's just return success since the email API might not be fully configured
-    // In a real implementation, you'd call the actual email service here
-    console.log('Test email would be sent:', emailData)
-    
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Test email sent successfully (simulated)',
-      provider: provider || 'resend',
-      emailData
+    // Actually send the email
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    const response = await fetch(`${baseUrl}/api/notifications/email`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': req.headers.get('Authorization') || ''
+      },
+      body: JSON.stringify(emailData)
     })
+
+    if (response.ok) {
+      const result = await response.json()
+      return NextResponse.json({ 
+        success: true, 
+        message: 'Test email sent successfully',
+        provider: provider || 'resend',
+        result
+      })
+    } else {
+      const errorText = await response.text()
+      console.error('Email API error:', errorText)
+      return new NextResponse(`Failed to send test email: ${errorText}`, { status: response.status })
+    }
     
   } catch (error) {
     console.error('Test notification API error:', error)

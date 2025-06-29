@@ -26,7 +26,11 @@ export function useNotifications() {
           browser: settings.browser || true,
           email: settings.email || false,
           emailProvider: settings.emailProvider || 'resend',
-          userEmail: settings.userEmail || ''
+          userEmail: settings.userEmail || '',
+          overdueThreshold: settings.overdueThreshold || 24,
+          questionThreshold: settings.questionThreshold || 12,
+          scheduledReminders: settings.scheduledReminders || true,
+          highPriorityOnly: settings.highPriorityOnly || false
         })
       } else {
         // Default settings
@@ -34,7 +38,11 @@ export function useNotifications() {
           browser: true,
           email: false,
           emailProvider: 'resend',
-          userEmail: ''
+          userEmail: '',
+          overdueThreshold: 24,
+          questionThreshold: 12,
+          scheduledReminders: true,
+          highPriorityOnly: false
         })
       }
     }
@@ -125,8 +133,8 @@ export function useNotifications() {
       setReminders(prev => [savedReminder, ...prev])
       
       // Schedule the reminder
-      orchestrator.scheduler.scheduleReminder(savedReminder)
-      orchestrator.effectivenessTracker.trackReminderSent(contactId)
+      orchestrator.getScheduler().scheduleReminder(savedReminder)
+      orchestrator.getEffectivenessTracker().trackReminderSent(contactId)
       
       return firestoreId
     } catch (error) {
@@ -178,6 +186,19 @@ export function useNotifications() {
       console.error('Error deleting reminder:', error)
     }
   }, [])
+
+  // Clear all reminders
+  const clearAllReminders = useCallback(async () => {
+    try {
+      const reminderService = ReminderService.getInstance()
+      await reminderService.clearAllReminders(userId!)
+      
+      // Clear local state
+      setReminders([])
+    } catch (error) {
+      console.error('Error clearing reminders:', error)
+    }
+  }, [userId])
 
   // Detect unanswered questions in messages
   const detectQuestions = useCallback((messages: string[]): string[] => {
@@ -241,6 +262,7 @@ export function useNotifications() {
     createScheduledReminder,
     updateReminder,
     deleteReminder,
+    clearAllReminders,
     detectQuestions,
     getEffectivenessStats,
     permissionGranted,
