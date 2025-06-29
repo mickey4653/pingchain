@@ -57,7 +57,7 @@ export function OpenLoops({
                       onClick={() => onSendMessage("Hi! Just checking in on our conversation.", loop.contact.id)}
                     >
                       <Send className="w-4 h-4 mr-1" />
-                      Quick Check-in
+                      Smart Check-in
                     </Button>
                   </div>
                 </div>

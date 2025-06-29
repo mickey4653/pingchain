@@ -181,10 +181,22 @@ export function LoopDashboard({ userId }: LoopDashboardProps) {
         tone: 'friendly'
       })
       
+      // Set the selected contact and pre-fill the message
+      setSelectedContact(loop.contact)
+      
+      // Store the generated response in localStorage for the MessageAssistant to pick up
+      localStorage.setItem('generated-response', suggestion)
+      
+      // Scroll to the message assistant section
+      const messageAssistant = document.getElementById('message-assistant')
+      if (messageAssistant) {
+        messageAssistant.scrollIntoView({ behavior: 'smooth' })
+      }
+      
       toast({
         title: "Response Generated",
-        description: suggestion,
-        duration: 10000, // Show for 10 seconds so user can copy
+        description: `Generated response for ${loop.contact.name}. You can edit it before sending.`,
+        duration: 5000,
       })
     } catch (error) {
       console.error('Error generating response:', error)
@@ -242,6 +254,29 @@ export function LoopDashboard({ userId }: LoopDashboardProps) {
 
   const handleSendMessage = async (message: string, contactId: string) => {
     try {
+      // If it's a quick check-in, generate a contextual message
+      let messageToSend = message
+      if (message === "Hi! Just checking in on our conversation.") {
+        // Find the contact and their last message for context
+        const contact = contacts.find(c => c.id === contactId)
+        const contactMessages = messages.filter(m => m.contactId === contactId)
+        const lastMessage = contactMessages[contactMessages.length - 1]
+        
+        if (contact && lastMessage) {
+          try {
+            const contextualCheckIn = await generateSmartTemplateMessage({
+              contact: contact.name,
+              previousMessages: [lastMessage.content],
+              tone: 'friendly'
+            })
+            messageToSend = contextualCheckIn
+          } catch (error) {
+            // Fallback to original message if generation fails
+            console.error('Error generating contextual check-in:', error)
+          }
+        }
+      }
+      
       // Check if we're using test data
       const testMessages = JSON.parse(localStorage.getItem('pingchain-test-messages') || '[]')
       
@@ -250,7 +285,7 @@ export function LoopDashboard({ userId }: LoopDashboardProps) {
         const newMessage = {
           id: `msg_${Date.now()}`,
           contactId,
-          content: message,
+          content: messageToSend,
           status: 'SENT' as any,
           aiGenerated: false,
           platform: 'EMAIL' as const,
@@ -273,7 +308,7 @@ export function LoopDashboard({ userId }: LoopDashboardProps) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            content: message,
+            content: messageToSend,
             contactId,
             platform: 'EMAIL'
           })

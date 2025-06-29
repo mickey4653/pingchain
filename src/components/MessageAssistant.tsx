@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -23,6 +23,15 @@ export function MessageAssistant({ contactId, previousMessages = [], onMessageSe
   const [tone, setTone] = useState<string>()
   const { userId } = useAuth()
   const { toast } = useToast()
+
+  // Check for generated response on mount
+  useEffect(() => {
+    const generatedResponse = localStorage.getItem('generated-response')
+    if (generatedResponse) {
+      setMessage(generatedResponse)
+      localStorage.removeItem('generated-response') // Clear it after using
+    }
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
