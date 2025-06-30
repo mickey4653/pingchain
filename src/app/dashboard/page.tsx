@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useUser } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -12,23 +12,15 @@ import { MessageList } from '@/components/MessageList'
 import { MessageAssistant } from '@/components/MessageAssistant'
 import { StreakDisplay } from '@/components/StreakDisplay'
 import { NotificationSettings } from '@/components/NotificationSettings'
-import { EmotionalIntelligence } from '@/components/dashboard/EmotionalIntelligence'
-import { TeamHealth } from '@/components/dashboard/TeamHealth'
-import { ConversationMemory } from '@/components/dashboard/ConversationMemory'
-import { AIAnalytics } from '@/components/dashboard/AIAnalytics'
-import { ReminderManager } from '@/components/ReminderManager'
-import { useNotifications } from '@/hooks/useNotifications'
-import { Heart, Users, BarChart3, MessageSquare, Clock, Settings, Brain, Zap, Database, Workflow, TrendingUp } from 'lucide-react'
-import { TeamManagement } from '@/components/dashboard/TeamManagement'
-import { CRMIntegration } from '@/components/dashboard/CRMIntegration'
-import { WorkflowAutomation } from '@/components/dashboard/WorkflowAutomation'
-import { AdvancedAnalytics } from '@/components/dashboard/AdvancedAnalytics'
+import { MessageSquare, Heart, Clock, Settings } from 'lucide-react'
+import type { Contact } from '@/types/firebase'
 
 export default function DashboardPage() {
   const { isLoaded, isSignedIn, user } = useUser();
   const router = useRouter();
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
-  const { reminders, loading: remindersLoading } = useNotifications()
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+  const loopDashboardRef = useRef<{ refreshData: () => void }>(null);
 
   console.log('Dashboard page loaded, user:', user?.id, 'isSignedIn:', isSignedIn)
 
@@ -55,54 +47,18 @@ export default function DashboardPage() {
 
       {/* Main Dashboard with Tabs */}
       <Tabs defaultValue="loop-dashboard" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-13">
-          <TabsTrigger value="loop-dashboard" className="flex items-center gap-2">
+        <TabsList className="flex w-full overflow-x-auto">
+          <TabsTrigger value="loop-dashboard" className="flex items-center gap-2 whitespace-nowrap">
             <MessageSquare className="h-4 w-4" />
             Overview
           </TabsTrigger>
-          <TabsTrigger value="emotional" className="flex items-center gap-2">
-            <Heart className="h-4 w-4" />
-            Emotional IQ
-          </TabsTrigger>
-          <TabsTrigger value="team" className="flex items-center gap-2">
-            <Users className="h-4 w-4" />
-            Team Health
-          </TabsTrigger>
-          <TabsTrigger value="team-management" className="flex items-center gap-2">
-            <Users className="h-4 w-4" />
-            Team Management
-          </TabsTrigger>
-          <TabsTrigger value="memory" className="flex items-center gap-2">
-            <Brain className="h-4 w-4" />
-            Memory
-          </TabsTrigger>
-          <TabsTrigger value="ai-analytics" className="flex items-center gap-2">
-            <Zap className="h-4 w-4" />
-            AI Analytics
-          </TabsTrigger>
-          <TabsTrigger value="advanced-analytics" className="flex items-center gap-2">
-            <TrendingUp className="h-4 w-4" />
-            Analytics
-          </TabsTrigger>
-          <TabsTrigger value="workflow" className="flex items-center gap-2">
-            <Workflow className="h-4 w-4" />
-            Workflows
-          </TabsTrigger>
-          <TabsTrigger value="crm" className="flex items-center gap-2">
-            <Database className="h-4 w-4" />
-            CRM
-          </TabsTrigger>
-          <TabsTrigger value="contacts" className="flex items-center gap-2">
+          <TabsTrigger value="contacts" className="flex items-center gap-2 whitespace-nowrap">
             Contacts
           </TabsTrigger>
-          <TabsTrigger value="messages" className="flex items-center gap-2">
+          <TabsTrigger value="messages" className="flex items-center gap-2 whitespace-nowrap">
             Messages
           </TabsTrigger>
-          <TabsTrigger value="reminders" className="flex items-center gap-2">
-            <Clock className="h-4 w-4" />
-            Reminders
-          </TabsTrigger>
-          <TabsTrigger value="settings" className="flex items-center gap-2">
+          <TabsTrigger value="settings" className="flex items-center gap-2 whitespace-nowrap">
             <Settings className="h-4 w-4" />
             Settings
           </TabsTrigger>
@@ -110,53 +66,22 @@ export default function DashboardPage() {
 
         {/* Loop Dashboard Tab */}
         <TabsContent value="loop-dashboard" className="space-y-6">
-          <LoopDashboard userId={user.id} />
-        </TabsContent>
-
-        {/* Emotional Intelligence Tab */}
-        <TabsContent value="emotional" className="space-y-6">
-          <EmotionalIntelligence />
-        </TabsContent>
-
-        {/* Team Health Tab */}
-        <TabsContent value="team" className="space-y-6">
-          <TeamHealth />
-        </TabsContent>
-
-        {/* Team Management Tab */}
-        <TabsContent value="team-management" className="space-y-6">
-          <TeamManagement />
-        </TabsContent>
-
-        {/* Conversation Memory Tab */}
-        <TabsContent value="memory" className="space-y-6">
-          <ConversationMemory contactId={selectedContactId || undefined} />
-        </TabsContent>
-
-        {/* AI Analytics Tab */}
-        <TabsContent value="ai-analytics" className="space-y-6">
-          <AIAnalytics />
-        </TabsContent>
-
-        {/* Advanced Analytics Tab */}
-        <TabsContent value="advanced-analytics" className="space-y-6">
-          <AdvancedAnalytics userId={user.id} />
-        </TabsContent>
-
-        {/* Workflow Automation Tab */}
-        <TabsContent value="workflow" className="space-y-6">
-          <WorkflowAutomation />
-        </TabsContent>
-
-        {/* CRM Integration Tab */}
-        <TabsContent value="crm" className="space-y-6">
-          <CRMIntegration />
+          <LoopDashboard 
+            userId={user.id} 
+            ref={loopDashboardRef}
+          />
         </TabsContent>
 
         {/* Contacts Tab */}
         <TabsContent value="contacts" className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <ContactList userId={user.id} onContactSelect={setSelectedContactId} />
+            <ContactList 
+              userId={user.id} 
+              onContactSelect={(contactId, contact) => {
+                setSelectedContactId(contactId);
+                setSelectedContact(contact);
+              }} 
+            />
             {selectedContactId && (
               <div className="space-y-6">
                 <StreakDisplay userId={user.id} />
@@ -169,11 +94,12 @@ export default function DashboardPage() {
 
         {/* Messages Tab */}
         <TabsContent value="messages" className="space-y-6">
-          {selectedContactId ? (
+          {selectedContact ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <MessageList contactId={selectedContactId} />
+              <MessageList contactId={selectedContact.id} />
               <MessageAssistant 
-                contactId={selectedContactId} 
+                contactId={selectedContact.id}
+                contactName={selectedContact.name}
                 onMessageSent={async (messageContent) => {
                   try {
                     // Send message to Firebase
@@ -182,14 +108,19 @@ export default function DashboardPage() {
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({
                         content: messageContent,
-                        contactId: selectedContactId,
+                        contactId: selectedContact.id,
                         platform: 'EMAIL'
                       })
                     })
                     
                     if (response.ok) {
-                      // Refresh the page to update the dashboard
-                      window.location.reload()
+                      // Update the LoopDashboard data instead of reloading the page
+                      if (loopDashboardRef.current?.refreshData) {
+                        loopDashboardRef.current.refreshData()
+                      }
+                      
+                      // Show success message
+                      console.log('Message sent successfully! Check the Overview tab to see it in Open Loops.')
                     } else {
                       throw new Error('Failed to send message')
                     }
@@ -204,11 +135,6 @@ export default function DashboardPage() {
               <p>Select a contact from the Contacts tab to view messages</p>
             </div>
           )}
-        </TabsContent>
-
-        {/* Reminders Tab */}
-        <TabsContent value="reminders" className="space-y-6">
-          <ReminderManager reminders={reminders} />
         </TabsContent>
 
         {/* Settings Tab */}

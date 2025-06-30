@@ -1,13 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
-    serverActions: true,
+    serverActions: {
+      allowedOrigins: ['localhost:3000'],
   },
-  // Ensure middleware is properly handled
-  middleware: {
-    // This is required for Clerk middleware to work
-    skipMiddlewareUrlNormalize: true,
-    skipTrailingSlashRedirect: true,
   },
 };
 

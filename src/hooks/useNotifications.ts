@@ -109,16 +109,39 @@ export function useNotifications() {
   ): Promise<string | null> => {
     if (!orchestrator || !userId) return null
 
+    // Check if we already have a similar reminder for this contact and type
+    const existingReminder = reminders.find(
+      r => r.contactId === contactId && r.type === type && r.status === 'pending'
+    )
+    
+    if (existingReminder) {
+      console.log(`Reminder already exists for ${contactName} (${type})`)
+      return existingReminder.id
+    }
+
+    // Ensure scheduledFor is in the future for scheduled reminders
+    let finalScheduledFor = scheduledFor
+    if (type === 'scheduled') {
+      const now = new Date()
+      if (!scheduledFor || scheduledFor.getTime() <= now.getTime()) {
+        // If no scheduledFor or it's in the past, set it to 1 hour from now
+        finalScheduledFor = new Date(now.getTime() + 60 * 60 * 1000)
+      }
+    }
+
+    // Generate a more unique ID
+    const uniqueId = `reminder_${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${contactId}_${type}`
+
     try {
       const reminder: ReminderNotification = {
-        id: `reminder_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        id: uniqueId,
         contactId,
         contactName,
         message,
         type,
         priority,
         createdAt: new Date(),
-        scheduledFor,
+        scheduledFor: finalScheduledFor,
         status: 'pending'
       }
 
@@ -141,14 +164,14 @@ export function useNotifications() {
       console.error('Error creating reminder:', error)
       // Create a local-only reminder if Firestore fails
       const localReminder: ReminderNotification = {
-        id: `local_reminder_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        id: uniqueId,
         contactId,
         contactName,
         message,
         type,
         priority,
         createdAt: new Date(),
-        scheduledFor,
+        scheduledFor: finalScheduledFor,
         status: 'pending'
       }
       
@@ -157,7 +180,7 @@ export function useNotifications() {
       
       return localReminder.id
     }
-  }, [orchestrator, userId])
+  }, [orchestrator, userId, reminders])
 
   // Update reminder status
   const updateReminder = useCallback(async (reminderId: string, updates: Partial<ReminderNotification>) => {

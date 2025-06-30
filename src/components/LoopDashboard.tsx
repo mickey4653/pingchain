@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef, forwardRef, useImperativeHandle } from 'react'
 import { useToast } from '@/hooks/use-toast'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -31,7 +31,11 @@ interface LoopDashboardProps {
   userId: string
 }
 
-export function LoopDashboard({ userId }: LoopDashboardProps) {
+export interface LoopDashboardRef {
+  refreshData: () => void
+}
+
+export const LoopDashboard = forwardRef<LoopDashboardRef, LoopDashboardProps>(({ userId }, ref) => {
   const { toast } = useToast()
   const { getToken } = useAuth()
   const [loading, setLoading] = useState(true)
@@ -93,6 +97,11 @@ export function LoopDashboard({ userId }: LoopDashboardProps) {
     }
   }, [toast])
 
+  // Expose refreshData function to parent component
+  useImperativeHandle(ref, () => ({
+    refreshData
+  }), [refreshData])
+
   // Process data with useMemo to prevent infinite re-renders
   const { openLoops, pendingReplies } = useMemo(() => {
     const result = processDashboardData(contacts, messages)
@@ -104,7 +113,7 @@ export function LoopDashboard({ userId }: LoopDashboardProps) {
     [contacts, messages]
   )
 
-  // Create automatic reminders based on user settings
+  // Create reminders for overdue conversations and scheduled check-ins
   useEffect(() => {
     if (!notifications.isReady || contacts.length === 0 || messages.length === 0) return
 
@@ -139,47 +148,28 @@ export function LoopDashboard({ userId }: LoopDashboardProps) {
         }
       }
 
-      // Create reminders for unanswered questions
-      for (const contact of contacts) {
-        const contactMessages = messages.filter(m => m.contactId === contact.id)
-        const messageContents = contactMessages.map(m => m.content)
-        const questions = notifications.detectQuestions(messageContents)
-        
-        // Find the most recent question that hasn't been answered
-        const lastQuestion = questions[questions.length - 1]
-        if (lastQuestion) {
-          const lastMessage = contactMessages[contactMessages.length - 1]
-          const hoursSinceQuestion = (Date.now() - getMessageDate(lastMessage).getTime()) / (1000 * 60 * 60)
-          
-          // Use user's configured threshold or default to 12 hours
-          const questionThreshold = userSettings.questionThreshold || 12
-          
-          if (hoursSinceQuestion >= questionThreshold) {
-            await notifications.createQuestionReminder(
-              contact.id,
-              contact.name,
-              lastQuestion
-            )
-          }
-        }
-      }
-
-      // Create scheduled check-in reminders if enabled
-      if (userSettings.scheduledReminders) {
-        // This would integrate with a scheduling system
-        // For now, we'll create a sample scheduled reminder
+      // Create scheduled check-ins for contacts (but only if we don't have too many reminders already)
+      if (notifications.reminders.length < 5) {
         const now = new Date()
         const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000)
         
         // Create a scheduled reminder for the first contact (if any)
         if (contacts.length > 0) {
           const contact = contacts[0]
-          await notifications.createScheduledReminder(
-            contact.id,
-            contact.name,
-            tomorrow,
-            `Scheduled check-in with ${contact.name}`
+          
+          // Check if we already have a scheduled reminder for this contact
+          const existingReminder = notifications.reminders.find(
+            r => r.contactId === contact.id && r.type === 'scheduled'
           )
+          
+          if (!existingReminder) {
+            await notifications.createScheduledReminder(
+              contact.id,
+              contact.name,
+              tomorrow,
+              `Scheduled check-in with ${contact.name}`
+            )
+          }
         }
       }
       
@@ -689,7 +679,7 @@ export function LoopDashboard({ userId }: LoopDashboardProps) {
         <div id="message-assistant">
           <MessageAssistant
             contactId={selectedContact.id}
-            previousMessages={messages.filter(m => m.contactId === selectedContact.id)}
+            contactName={selectedContact.name}
             onMessageSent={async (messageContent) => {
               try {
                 // Check if we're using test data
@@ -863,5 +853,5 @@ export function LoopDashboard({ userId }: LoopDashboardProps) {
         </CardContent>
       </Card>
     </div>
-  )
-} 
+  );
+}); 

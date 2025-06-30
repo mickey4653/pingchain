@@ -1,0 +1,27 @@
+{
+  "name": "PingChain - Smart Communication Assistant",
+  "short_name": "PingChain",
+  "description": "Never leave important conversations hanging. A smart communication assistant that helps you maintain meaningful connections.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#000000",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/pingchain-android-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/pingchain-android-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable any"
+    }
+  ],
+  "categories": ["productivity", "communication", "business"],
+  "lang": "en",
+  "dir": "ltr"
+} 

@@ -12,6 +12,10 @@ import { ContractForm } from '@/components/ContractForm'
 import { StreakDisplay } from '@/components/StreakDisplay'
 import type { Contact } from '@/types/firebase'
 import { getContacts } from '@/lib/firebase-service'
+import Link from 'next/link'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { MessageSquare, Heart, Clock, Zap, Shield, Smartphone } from 'lucide-react'
 
 const features = [
   {
@@ -141,6 +145,7 @@ export default function Home() {
                 />
                 <MessageAssistant
                   contactId={selectedContact.id}
+                  contactName={selectedContact.name}
                   onMessageSent={async (messageContent) => {
                     try {
                       // Send message to Firebase

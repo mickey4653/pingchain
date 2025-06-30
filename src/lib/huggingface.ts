@@ -1,6 +1,6 @@
 export interface MessageSuggestionRequest {
   contact: string
-  previousMessages: string[]
+  previousMessages: (string | { content: string })[]
   tone: 'friendly' | 'professional' | 'casual' | 'formal'
   context?: string
 }
@@ -19,9 +19,14 @@ export async function generateMessageSuggestionWithHuggingFace(request: MessageS
   try {
     const { contact, previousMessages, tone, context } = request
     
+    // Extract content from message objects
+    const messageContents = previousMessages.map(msg => 
+      typeof msg === 'string' ? msg : msg?.content || ''
+    )
+    
     // Create a simple prompt for the model
     const prompt = `Conversation with ${contact}:
-${previousMessages.slice(-3).map((msg, i) => `Message ${i + 1}: ${msg}`).join('\n')}
+${messageContents.slice(-3).map((msg, i) => `Message ${i + 1}: ${msg}`).join('\n')}
 ${context ? `Context: ${context}\n` : ''}
 Next ${tone} response:`
 
@@ -122,7 +127,8 @@ export function generateSmartTemplateMessage(request: MessageSuggestionRequest):
   const { contact, previousMessages, tone, context } = request
   
   // Analyze the last message for context
-  const lastMessage = previousMessages[previousMessages.length - 1] || ''
+  const lastMessageObj = previousMessages[previousMessages.length - 1]
+  const lastMessage = typeof lastMessageObj === 'string' ? lastMessageObj : lastMessageObj?.content || ''
   const lowerLastMessage = lastMessage.toLowerCase()
   
   // Context-aware templates

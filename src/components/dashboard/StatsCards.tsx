@@ -1,61 +1,95 @@
-import { Card, CardContent } from '@/components/ui/card'
-import { AlertCircle, Flame, CheckCircle, Clock } from 'lucide-react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { MessageSquare, Heart, Clock, TrendingUp, AlertTriangle } from 'lucide-react'
+import { PendingReply } from '@/lib/dashboard-data'
 
 interface StatsCardsProps {
   openLoops: number
   currentStreak: number
   checkInsSent: number
-  pendingReplies: any[]
+  pendingReplies: PendingReply[]
 }
 
 export function StatsCards({ openLoops, currentStreak, checkInsSent, pendingReplies }: StatsCardsProps) {
+  const handleClearReminders = async () => {
+    try {
+      const response = await fetch('/api/reminders/test', {
+        method: 'DELETE'
+      })
+      
+      if (response.ok) {
+        console.log('All reminders cleared successfully')
+        // Reload the page to refresh the dashboard
+        window.location.reload()
+      } else {
+        console.error('Failed to clear reminders')
+      }
+    } catch (error) {
+      console.error('Error clearing reminders:', error)
+    }
+  }
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
       <Card>
-        <CardContent className="p-4">
-          <div className="flex items-center space-x-2">
-            <AlertCircle className="w-5 h-5 text-orange-500" />
-            <div>
-              <div className="text-2xl font-bold">{openLoops}</div>
-              <div className="text-sm text-muted-foreground">Open Loops</div>
-            </div>
-          </div>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Open Loops</CardTitle>
+          <MessageSquare className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">{openLoops}</div>
+          <p className="text-xs text-muted-foreground">
+            Conversations waiting for response
+          </p>
         </CardContent>
       </Card>
 
       <Card>
-        <CardContent className="p-4">
-          <div className="flex items-center space-x-2">
-            <Flame className="w-5 h-5 text-orange-500" />
-            <div>
-              <div className="text-2xl font-bold">{currentStreak}</div>
-              <div className="text-sm text-muted-foreground">Current Streak</div>
-            </div>
-          </div>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Current Streak</CardTitle>
+          <TrendingUp className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">{currentStreak}</div>
+          <p className="text-xs text-muted-foreground">
+            Days of consistent communication
+          </p>
         </CardContent>
       </Card>
 
       <Card>
-        <CardContent className="p-4">
-          <div className="flex items-center space-x-2">
-            <CheckCircle className="w-5 h-5 text-green-500" />
-            <div>
-              <div className="text-2xl font-bold">{checkInsSent}</div>
-              <div className="text-sm text-muted-foreground">Check-Ins Sent</div>
-            </div>
-          </div>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Check-ins Sent</CardTitle>
+          <Heart className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">{checkInsSent}</div>
+          <p className="text-xs text-muted-foreground">
+            Proactive messages sent this week
+          </p>
         </CardContent>
       </Card>
 
       <Card>
-        <CardContent className="p-4">
-          <div className="flex items-center space-x-2">
-            <Clock className="w-5 h-5 text-blue-500" />
-            <div>
-              <div className="text-2xl font-bold">{pendingReplies.length}</div>
-              <div className="text-sm text-muted-foreground">Pending Replies</div>
-            </div>
-          </div>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Pending Replies</CardTitle>
+          <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">{pendingReplies.length}</div>
+          <p className="text-xs text-muted-foreground">
+            Messages needing response
+          </p>
+          {pendingReplies.length > 0 && (
+            <Button 
+              size="sm" 
+              variant="outline" 
+              className="mt-2 text-xs"
+              onClick={handleClearReminders}
+            >
+              Clear All Reminders
+            </Button>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -29,7 +29,12 @@ export function ReminderManager({
   const [filter, setFilter] = useState<'all' | 'pending' | 'sent'>('all')
   const [showStats, setShowStats] = useState(false)
 
-  const filteredReminders = reminders.filter(reminder => {
+  // Deduplicate reminders by ID to prevent React key conflicts
+  const uniqueReminders = reminders.filter((reminder, index, self) => 
+    index === self.findIndex(r => r.id === reminder.id)
+  )
+
+  const filteredReminders = uniqueReminders.filter(reminder => {
     if (filter === 'all') return true
     return reminder.status === filter
   })
@@ -55,11 +60,20 @@ export function ReminderManager({
 
   const formatTimeAgo = (date: Date) => {
     const now = new Date()
-    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60))
+    const diffInMinutes = Math.floor((date.getTime() - now.getTime()) / (1000 * 60))
     
-    if (diffInMinutes < 60) return `${diffInMinutes}m ago`
-    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h ago`
-    return `${Math.floor(diffInMinutes / 1440)}d ago`
+    // If the date is in the future (positive diff), show "in X time"
+    if (diffInMinutes > 0) {
+      if (diffInMinutes < 60) return `in ${diffInMinutes}m`
+      if (diffInMinutes < 1440) return `in ${Math.floor(diffInMinutes / 60)}h`
+      return `in ${Math.floor(diffInMinutes / 1440)}d`
+    }
+    
+    // If the date is in the past (negative diff), show "X time ago"
+    const absDiffInMinutes = Math.abs(diffInMinutes)
+    if (absDiffInMinutes < 60) return `${absDiffInMinutes}m ago`
+    if (absDiffInMinutes < 1440) return `${Math.floor(absDiffInMinutes / 60)}h ago`
+    return `${Math.floor(absDiffInMinutes / 1440)}d ago`
   }
 
   const handleDismiss = (reminderId: string) => {
@@ -88,8 +102,8 @@ export function ReminderManager({
   }
 
   const getEffectivenessStats = () => {
-    const totalReminders = reminders.length
-    const respondedReminders = reminders.filter(r => r.status === 'sent').length
+    const totalReminders = uniqueReminders.length
+    const respondedReminders = uniqueReminders.filter(r => r.status === 'sent').length
     const responseRate = totalReminders > 0 ? (respondedReminders / totalReminders) * 100 : 0
     
     return {
@@ -99,7 +113,26 @@ export function ReminderManager({
     }
   }
 
-  if (reminders.length === 0) {
+  const handleClearAll = async () => {
+    if (confirm('Are you sure you want to clear all reminders? This action cannot be undone.')) {
+      try {
+        onClearAll?.()
+        toast({
+          title: 'All reminders cleared',
+          description: 'All reminders have been removed.',
+        })
+      } catch (error) {
+        console.error('Error clearing reminders:', error)
+        toast({
+          title: 'Error',
+          description: 'Failed to clear reminders.',
+          variant: 'destructive',
+        })
+      }
+    }
+  }
+
+  if (uniqueReminders.length === 0) {
     return (
       <Card>
         <CardContent className="flex flex-col items-center justify-center py-8">
@@ -125,21 +158,21 @@ export function ReminderManager({
             size="sm"
             onClick={() => setFilter('all')}
           >
-            All ({reminders.length})
+            All ({uniqueReminders.length})
           </Button>
           <Button
             variant={filter === 'pending' ? 'default' : 'outline'}
             size="sm"
             onClick={() => setFilter('pending')}
           >
-            Pending ({reminders.filter(r => r.status === 'pending').length})
+            Pending ({uniqueReminders.filter(r => r.status === 'pending').length})
           </Button>
           <Button
             variant={filter === 'sent' ? 'default' : 'outline'}
             size="sm"
             onClick={() => setFilter('sent')}
           >
-            Sent ({reminders.filter(r => r.status === 'sent').length})
+            Sent ({uniqueReminders.filter(r => r.status === 'sent').length})
           </Button>
         </div>
         
@@ -157,11 +190,7 @@ export function ReminderManager({
             <Button
               variant="destructive"
               size="sm"
-              onClick={() => {
-                if (confirm('Are you sure you want to clear all reminders? This action cannot be undone.')) {
-                  onClearAll()
-                }
-              }}
+              onClick={handleClearAll}
             >
               <XCircle className="h-4 w-4 mr-2" />
               Clear All

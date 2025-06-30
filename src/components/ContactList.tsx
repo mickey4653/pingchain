@@ -17,7 +17,7 @@ import { db } from '@/lib/firebase'
 
 interface ContactListProps {
   userId: string
-  onContactSelect: (contactId: string) => void
+  onContactSelect: (contactId: string, contact: Contact) => void
 }
 
 export function ContactList({ userId, onContactSelect }: ContactListProps) {
@@ -270,7 +270,7 @@ export function ContactList({ userId, onContactSelect }: ContactListProps) {
               <div
                 key={contact.id}
                 className="flex items-center justify-between p-4 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100"
-                onClick={() => onContactSelect(contact.id)}
+                onClick={() => onContactSelect(contact.id, contact)}
               >
                 <div>
                   <p className="font-medium text-gray-900">{contact.name}</p>

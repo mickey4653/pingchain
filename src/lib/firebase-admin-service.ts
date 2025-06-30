@@ -1,5 +1,98 @@
 import { adminDb } from './firebase-admin';
 import type { Contact, Message, Contract, Streak, UserStatistics } from '@/types/firebase';
+import { getFirestore } from 'firebase-admin/firestore'
+import { initializeApp, getApps, cert } from 'firebase-admin/app'
+
+// Initialize Firebase Admin if not already initialized
+if (getApps().length === 0) {
+  initializeApp({
+    credential: cert({
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    }),
+  })
+}
+
+const adminDb = getFirestore()
+
+export interface FirestoreReminder {
+  id?: string
+  userId: string
+  contactId: string
+  contactName: string
+  message: string
+  type: 'overdue' | 'question' | 'scheduled' | 'urgent'
+  priority: 'high' | 'medium' | 'low'
+  createdAt: any
+  scheduledFor?: any
+  sentAt?: any
+  status: 'pending' | 'sent' | 'dismissed'
+}
+
+export class FirebaseAdminService {
+  private static instance: FirebaseAdminService
+
+  static getInstance(): FirebaseAdminService {
+    if (!FirebaseAdminService.instance) {
+      FirebaseAdminService.instance = new FirebaseAdminService()
+    }
+    return FirebaseAdminService.instance
+  }
+
+  async getReminders(userId: string): Promise<FirestoreReminder[]> {
+    try {
+      const remindersRef = adminDb.collection('reminders')
+      const snapshot = await remindersRef.where('userId', '==', userId).get()
+      
+      return snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as FirestoreReminder[]
+    } catch (error) {
+      console.error('Error fetching reminders:', error)
+      return []
+    }
+  }
+
+  async clearAllReminders(userId: string): Promise<void> {
+    try {
+      const remindersRef = adminDb.collection('reminders')
+      const snapshot = await remindersRef.where('userId', '==', userId).get()
+      
+      const batch = adminDb.batch()
+      snapshot.docs.forEach(doc => {
+        batch.delete(doc.ref)
+      })
+      
+      await batch.commit()
+      console.log(`Cleared ${snapshot.docs.length} reminders for user ${userId}`)
+    } catch (error) {
+      console.error('Error clearing reminders:', error)
+      throw error
+    }
+  }
+
+  async deleteReminder(reminderId: string): Promise<void> {
+    try {
+      const reminderRef = adminDb.collection('reminders').doc(reminderId)
+      await reminderRef.delete()
+    } catch (error) {
+      console.error('Error deleting reminder:', error)
+      throw error
+    }
+  }
+
+  async updateReminder(reminderId: string, updates: Partial<FirestoreReminder>): Promise<void> {
+    try {
+      const reminderRef = adminDb.collection('reminders').doc(reminderId)
+      await reminderRef.update(updates)
+    } catch (error) {
+      console.error('Error updating reminder:', error)
+      throw error
+    }
+  }
+}
 
 // Utility function to remove undefined values from objects
 const removeUndefinedValues = (obj: Record<string, any>) => {
