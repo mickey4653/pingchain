@@ -91,7 +91,7 @@ export async function POST(request: Request) {
       );
     }
 
-    console.log('Creating Firebase custom token for user:', userId);
+    // console.log('Creating Firebase custom token for user:', userId);
 
     try {
       // Create a custom token for Firebase

@@ -13,24 +13,24 @@ export function ClerkFirebaseSync() {
   useEffect(() => {
     // Log Firebase auth state changes
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      console.log('Firebase auth state changed:', {
-        isAuthenticated: !!firebaseUser,
-        uid: firebaseUser?.uid,
-        email: firebaseUser?.email
-      });
+      // console.log('Firebase auth state changed:', {
+      //   isAuthenticated: !!firebaseUser,
+      //   uid: firebaseUser?.uid,
+      //   email: firebaseUser?.email
+      // });
     });
 
     const syncAuth = async () => {
       try {
         if (!user?.id) {
-          console.log('No user ID available');
+          // console.log('No user ID available');
           return;
         }
 
-        console.log('Getting Clerk token for user:', user.id);
+        // console.log('Getting Clerk token for user:', user.id);
         const token = await getToken();
         if (token) {
-          console.log('Got Clerk token, signing in to Firebase...');
+          // console.log('Got Clerk token, signing in to Firebase...');
           await signInWithClerk(token, user.id);
         } else {
           console.error('No Clerk token available');

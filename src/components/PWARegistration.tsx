@@ -19,8 +19,11 @@ export function PWARegistration() {
 
     // Listen for beforeinstallprompt event
     const handleBeforeInstallPrompt = (e: any) => {
+      // Prevent the default browser install prompt
       e.preventDefault()
+      // Store the event for later use
       setDeferredPrompt(e)
+      // Show our custom install prompt
       setShowInstallPrompt(true)
     }
 
@@ -38,7 +41,7 @@ export function PWARegistration() {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js')
         .then((registration) => {
-          console.log('SW registered: ', registration)
+          // console.log('SW registered: ', registration)
         })
         .catch((registrationError) => {
           console.log('SW registration failed: ', registrationError)
@@ -54,15 +57,20 @@ export function PWARegistration() {
   const handleInstallClick = async () => {
     if (!deferredPrompt) return
 
+    // Show the install prompt
     deferredPrompt.prompt()
+    
+    // Wait for the user to respond to the prompt
     const { outcome } = await deferredPrompt.userChoice
 
     if (outcome === 'accepted') {
       console.log('User accepted the install prompt')
+      setIsInstalled(true)
     } else {
       console.log('User dismissed the install prompt')
     }
 
+    // Clear the deferred prompt
     setDeferredPrompt(null)
     setShowInstallPrompt(false)
   }
@@ -76,10 +84,12 @@ export function PWARegistration() {
     }
   }
 
+  // Don't show anything if already installed
   if (isInstalled) {
     return null
   }
 
+  // Don't show anything if no install prompt is available
   if (!showInstallPrompt) {
     return null
   }

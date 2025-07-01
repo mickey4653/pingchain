@@ -4,15 +4,21 @@ import OpenAI from 'openai'
 const apiKey = process.env.OPENAI_API_KEY || process.env.NEXT_PUBLIC_OPENAI_API_KEY
 
 if (!apiKey) {
-  throw new Error('Missing OpenAI API key. Please set either OPENAI_API_KEY or NEXT_PUBLIC_OPENAI_API_KEY environment variable')
+  console.warn('Missing OpenAI API key. OpenAI features will be disabled.')
 }
 
-const openai = new OpenAI({
-  apiKey,
-})
+const openai = apiKey ? new OpenAI({ apiKey }) : null
 
 export async function POST(request: Request) {
   try {
+    // Check if OpenAI is available
+    if (!openai) {
+      return NextResponse.json(
+        { error: 'OpenAI API not configured. Please set OPENAI_API_KEY environment variable.' },
+        { status: 503 }
+      )
+    }
+
     const { action, data } = await request.json()
 
     switch (action) {
@@ -73,6 +79,15 @@ export async function POST(request: Request) {
 
       case 'analyzeConversation': {
         const { messages } = data
+        
+        if (!messages || messages.length === 0) {
+          return NextResponse.json({
+            topics: [],
+            sentiment: 'neutral',
+            actionItems: []
+          })
+        }
+
         const prompt = `
           Analyze this conversation and provide insights:
           ${messages.join('\n')}
@@ -106,6 +121,23 @@ export async function POST(request: Request) {
     }
   } catch (error) {
     console.error('OpenAI API error:', error)
+    
+    // Provide more specific error messages
+    if (error instanceof Error) {
+      if (error.message.includes('API key')) {
+        return NextResponse.json(
+          { error: 'Invalid OpenAI API key' },
+          { status: 401 }
+        )
+      }
+      if (error.message.includes('quota')) {
+        return NextResponse.json(
+          { error: 'OpenAI API quota exceeded' },
+          { status: 429 }
+        )
+      }
+    }
+    
     return NextResponse.json(
       { error: 'Failed to process request' },
       { status: 500 }

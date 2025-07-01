@@ -22,7 +22,7 @@ export default function DashboardPage() {
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const loopDashboardRef = useRef<{ refreshData: () => void }>(null);
 
-  console.log('Dashboard page loaded, user:', user?.id, 'isSignedIn:', isSignedIn)
+  // console.log('Dashboard page loaded, user:', user?.id, 'isSignedIn:', isSignedIn)
 
   useEffect(() => {
     if (isLoaded && !isSignedIn) {

@@ -19,14 +19,15 @@ interface EngagementTrackerProps {
 interface EngagementMetrics {
   messageFrequency: number // messages per day
   responseTime: number // average hours between messages
-  sentiment: string // overall sentiment
-  topics: string[] // common topics
-  suggestions: string[] // improvement suggestions
+  sentiment?: string // overall sentiment (optional)
+  topics?: string[] // common topics (optional)
+  suggestions?: string[] // improvement suggestions (optional)
 }
 
 export function EngagementTracker({ contactId, contact }: EngagementTrackerProps) {
   const [metrics, setMetrics] = useState<EngagementMetrics>()
   const [loading, setLoading] = useState(true)
+  const [lastAnalyzedMessages, setLastAnalyzedMessages] = useState<string>('')
   const { userId } = useAuth()
   const { toast } = useToast()
 
@@ -41,6 +42,8 @@ export function EngagementTracker({ contactId, contact }: EngagementTrackerProps
       orderBy('createdAt', 'desc'),
       limit(50) // Analyze last 50 messages
     )
+
+    let analysisTimeout: NodeJS.Timeout
 
     const unsubscribe = onSnapshot(q, async (snapshot) => {
       const messages = snapshot.docs.map(doc => ({
@@ -72,18 +75,49 @@ export function EngagementTracker({ contactId, contact }: EngagementTrackerProps
         }
         const averageResponseTime = responseCount > 0 ? totalResponseTime / responseCount / (60 * 60 * 1000) : 0
 
-        // Analyze conversation context
-        const analysis = await analyzeConversationContext(
-          messages.map(m => m.content)
-        )
-
-        setMetrics({
+        // Set basic metrics first
+        const basicMetrics: EngagementMetrics = {
           messageFrequency,
           responseTime: averageResponseTime,
-          sentiment: analysis.sentiment,
-          topics: analysis.topics,
-          suggestions: analysis.actionItems
-        })
+        }
+
+        setMetrics(basicMetrics)
+
+        // Only analyze if we have enough messages and debounce the analysis
+        if (messages.length >= 3) {
+          // Create a hash of the messages to check if they've changed
+          const messagesHash = messages.map(m => m.content).join('|')
+          
+          // Only analyze if messages have changed
+          if (messagesHash !== lastAnalyzedMessages) {
+            // Clear previous timeout
+            if (analysisTimeout) {
+              clearTimeout(analysisTimeout)
+            }
+
+            // Debounce the analysis to prevent too many API calls
+            analysisTimeout = setTimeout(async () => {
+              try {
+                const analysis = await analyzeConversationContext(
+                  messages.map(m => m.content)
+                )
+                
+                setMetrics({
+                  ...basicMetrics,
+                  sentiment: analysis.sentiment,
+                  topics: analysis.topics,
+                  suggestions: analysis.actionItems
+                })
+                
+                // Update the cache
+                setLastAnalyzedMessages(messagesHash)
+              } catch (analysisError) {
+                console.log('OpenAI analysis not available, using basic metrics only')
+                // Keep the basic metrics, just don't show AI analysis
+              }
+            }, 2000) // Wait 2 seconds before analyzing
+          }
+        }
       } catch (error) {
         console.error('Error analyzing engagement:', error)
         toast({
@@ -99,7 +133,12 @@ export function EngagementTracker({ contactId, contact }: EngagementTrackerProps
       setLoading(false)
     })
 
-    return () => unsubscribe()
+    return () => {
+      unsubscribe()
+      if (analysisTimeout) {
+        clearTimeout(analysisTimeout)
+      }
+    }
   }, [userId, contactId])
 
   if (loading) {
@@ -150,19 +189,21 @@ export function EngagementTracker({ contactId, contact }: EngagementTrackerProps
             </div>
           </div>
 
-          {/* Sentiment */}
-          <div className="flex items-center space-x-4">
-            <Heart className="w-6 h-6 text-primary" />
-            <div>
-              <div className="font-medium">Conversation Sentiment</div>
-              <div className="text-sm text-muted-foreground">
-                {metrics.sentiment}
+          {/* Sentiment - Only show if available */}
+          {metrics.sentiment && (
+            <div className="flex items-center space-x-4">
+              <Heart className="w-6 h-6 text-primary" />
+              <div>
+                <div className="font-medium">Conversation Sentiment</div>
+                <div className="text-sm text-muted-foreground">
+                  {metrics.sentiment}
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Topics */}
-          {metrics.topics.length > 0 && (
+          {metrics.topics?.length > 0 && (
             <div>
               <div className="font-medium mb-2">Common Topics</div>
               <div className="flex flex-wrap gap-2">
@@ -179,7 +220,7 @@ export function EngagementTracker({ contactId, contact }: EngagementTrackerProps
           )}
 
           {/* Suggestions */}
-          {metrics.suggestions.length > 0 && (
+          {metrics.suggestions?.length > 0 && (
             <div>
               <div className="font-medium mb-2">Suggestions</div>
               <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
